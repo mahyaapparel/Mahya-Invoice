@@ -1,0 +1,6 @@
+{
+  "name": "Kasir Konveksi & Invoice",
+  "description": "Aplikasi kasir konveksi dengan fitur pembuatan invoice dan link pembayaran (payment link) untuk pelanggan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

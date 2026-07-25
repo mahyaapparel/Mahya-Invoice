@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "orders": {
+      "title": "Orders",
+      "description": "Convection orders for invoice and production tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerAddress": { "type": "string" },
+        "productType": { "type": "string" },
+        "fabricType": { "type": "string" },
+        "fabricColor": { "type": "string" },
+        "sablonBordir": { "type": "string" },
+        "quantityTotal": { "type": "number" },
+        "sizeDistribution": { "type": "string" },
+        "unitPrice": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "dpAmount": { "type": "number" },
+        "remainingBalance": { "type": "number" },
+        "paymentStatus": { "type": "string" },
+        "productionStatus": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "customerName", "totalPrice", "createdAt"]
+    },
+    "customers": {
+      "title": "Customers",
+      "description": "Customer contact list and notes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Kasir & Invoice settings",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string" },
+        "slogan": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "additionalNotes": { "type": "string" }
+      },
+      "required": ["businessName"]
+    }
+  }
+}
