@@ -1040,29 +1040,7 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                   </div>
                 )}
 
-                {/* Proceed button */}
-                <button
-                  disabled={!selectedMethod || processingPayment}
-                  onClick={handlePaymentSubmit}
-                  className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-1.5 ${
-                    !selectedMethod
-                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-[0.98]'
-                  }`}
-                  id="btn-submit-simulated-payment"
-                >
-                  {processingPayment ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Menghubungkan ke Bank Gateway...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck size={16} />
-                      Konfirmasi & Bayar {formatRupiah(amountToPay)}
-                    </>
-                  )}
-                </button>
+
               </div>
             )}
           </div>
