@@ -4,7 +4,7 @@ import {
   TrendingUp, User, Phone, ExternalLink, Copy, Trash2, Edit3, 
   AlertTriangle, Activity, FileText, Check, MapPin, CreditCard, Scissors, Sparkles, SlidersHorizontal, X, Settings, Upload,
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
-  Cloud, LogIn, LogOut, ShieldCheck
+  Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key
 } from 'lucide-react';
 import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
@@ -58,6 +58,71 @@ export default function CashierDashboard() {
   // Invoice Settings states
   const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+
+  // PIN Protection states
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('cashier_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [enteredPin, setEnteredPin] = useState<string>('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [showPinMask, setShowPinMask] = useState<boolean>(true);
+  const [showPinInSettings, setShowPinInSettings] = useState<boolean>(false);
+
+  const handleLockSystem = () => {
+    try {
+      sessionStorage.removeItem('cashier_unlocked');
+    } catch (e) {
+      console.error(e);
+    }
+    setIsUnlocked(false);
+    setEnteredPin('');
+    setPinError(null);
+  };
+
+  const handleUnlockSystem = (overridePin?: string) => {
+    const pin = overridePin !== undefined ? overridePin : enteredPin;
+    const targetPin = (invoiceSettings?.adminPin && invoiceSettings.adminPin.trim() !== '') 
+      ? invoiceSettings.adminPin.trim() 
+      : '1234';
+
+    if (pin.trim() === targetPin) {
+      try {
+        sessionStorage.setItem('cashier_unlocked', 'true');
+      } catch (e) {
+        console.error(e);
+      }
+      setIsUnlocked(true);
+      setPinError(null);
+      setEnteredPin('');
+    } else {
+      setPinError('PIN yang Anda masukkan salah! Silakan coba lagi.');
+      setEnteredPin('');
+    }
+  };
+
+  const handleNumpadPress = (val: string) => {
+    setPinError(null);
+    if (val === 'CLEAR') {
+      setEnteredPin('');
+    } else if (val === 'BACK') {
+      setEnteredPin(prev => prev.slice(0, -1));
+    } else {
+      if (enteredPin.length < 6) {
+        const next = enteredPin + val;
+        setEnteredPin(next);
+        const targetPin = (invoiceSettings?.adminPin && invoiceSettings.adminPin.trim() !== '') 
+          ? invoiceSettings.adminPin.trim() 
+          : '1234';
+        if (next === targetPin) {
+          handleUnlockSystem(next);
+        }
+      }
+    }
+  };
 
   // Modal control states
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
@@ -934,6 +999,151 @@ export default function CashierDashboard() {
     return matchesSearch && matchesProduction && matchesPayment;
   });
 
+  // Render PIN Lock Screen if system is locked
+  if (!isUnlocked) {
+    const displayPin = (invoiceSettings?.adminPin && invoiceSettings.adminPin.trim() !== '') 
+      ? invoiceSettings.adminPin.trim() 
+      : '1234';
+
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+        {/* Background Ambient Glow */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6 animate-fade-in text-center">
+          {/* Lock Screen Header */}
+          <div className="space-y-3">
+            <div className="w-16 h-16 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <Lock size={32} className="animate-pulse text-blue-400" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold tracking-widest text-blue-400 uppercase bg-blue-950/80 px-3 py-1 rounded-full border border-blue-800/50 inline-block mb-1.5">
+                AKSES KASIR TERKUNCI
+              </span>
+              <h2 className="text-2xl font-black text-white tracking-tight">
+                {invoiceSettings?.businessName || 'Mahya Apparel Konveksi'}
+              </h2>
+              <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed">
+                Masukkan PIN Kasir / Owner untuk mengakses dashboard manajemen dan data order.
+              </p>
+            </div>
+          </div>
+
+          {/* PIN Input Form */}
+          <form onSubmit={(e) => { e.preventDefault(); handleUnlockSystem(); }} className="space-y-4">
+            <div className="relative">
+              <div className="flex items-center justify-center gap-2 py-3 bg-slate-950 border border-slate-800 rounded-2xl px-4 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                <KeyRound size={18} className="text-slate-500 shrink-0" />
+                <input
+                  type={showPinMask ? 'password' : 'text'}
+                  value={enteredPin}
+                  onChange={(e) => {
+                    setPinError(null);
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setEnteredPin(val);
+                    if (val === displayPin) {
+                      handleUnlockSystem(val);
+                    }
+                  }}
+                  placeholder="Masukkan PIN..."
+                  autoFocus
+                  className="w-full bg-transparent text-center text-2xl font-mono tracking-widest font-bold text-white focus:outline-none placeholder:text-slate-600 placeholder:text-sm placeholder:tracking-normal"
+                  id="input-pin-lockscreen"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPinMask(!showPinMask)}
+                  className="text-slate-500 hover:text-slate-300 p-1 cursor-pointer transition-colors"
+                  title={showPinMask ? 'Tampilkan PIN' : 'Sembunyikan PIN'}
+                  id="btn-toggle-pin-mask"
+                >
+                  {showPinMask ? <Eye size={18} /> : <EyeOff size={18} />}
+                </button>
+              </div>
+
+              {/* Indicator dots */}
+              <div className="flex justify-center gap-2.5 mt-3">
+                {[0, 1, 2, 3].map((idx) => {
+                  const isFilled = enteredPin.length > idx;
+                  return (
+                    <div
+                      key={idx}
+                      className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
+                        isFilled
+                          ? 'bg-blue-500 scale-110 shadow-sm shadow-blue-500/50'
+                          : 'bg-slate-800 border border-slate-700'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {pinError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-semibold flex items-center justify-center gap-2 animate-shake">
+                <ShieldAlert size={16} className="shrink-0 text-rose-400" />
+                <span>{pinError}</span>
+              </div>
+            )}
+
+            {/* Interactive Numpad */}
+            <div className="grid grid-cols-3 gap-2.5 pt-2">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'CLEAR', '0', 'BACK'].map((key) => {
+                let label: React.ReactNode = key;
+                let btnClass = "bg-slate-800/80 hover:bg-slate-700 text-white font-mono text-xl font-bold py-3 rounded-2xl border border-slate-700/60 active:scale-95 transition-all shadow-sm cursor-pointer";
+                if (key === 'CLEAR') {
+                  label = <span className="text-xs font-sans font-bold text-slate-400">HAPUS</span>;
+                  btnClass = "bg-slate-900 hover:bg-slate-800 text-slate-400 font-bold text-xs py-3 rounded-2xl border border-slate-800 active:scale-95 transition-all cursor-pointer";
+                } else if (key === 'BACK') {
+                  label = <span className="text-xs font-sans font-bold text-slate-400">⌫</span>;
+                  btnClass = "bg-slate-900 hover:bg-slate-800 text-slate-400 font-bold text-xs py-3 rounded-2xl border border-slate-800 active:scale-95 transition-all cursor-pointer";
+                }
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleNumpadPress(key)}
+                    className={btnClass}
+                    id={`btn-numpad-${key}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="submit"
+              disabled={!enteredPin}
+              className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
+                enteredPin
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30 cursor-pointer active:scale-[0.98]'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
+              }`}
+              id="btn-submit-pin"
+            >
+              <Unlock size={18} />
+              Buka Dashboard Kasir
+            </button>
+          </form>
+
+          {/* Footer Info */}
+          <div className="pt-2 border-t border-slate-800/80 text-left space-y-2">
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              💡 <strong className="text-slate-300">Tips Pengamanan:</strong> PIN default sistem adalah <code className="bg-slate-800 text-blue-400 px-1.5 py-0.5 rounded font-mono font-bold">1234</code>.
+            </p>
+            <p className="text-[10px] text-slate-500">
+              PIN dapat diatur ulang kapan saja melalui menu <strong>Pengaturan Invoice</strong> di dalam dashboard kasir.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 font-sans text-slate-900">
       
@@ -1026,6 +1236,17 @@ export default function CashierDashboard() {
             <Settings size={18} />
             <span className="text-sm whitespace-nowrap">Pengaturan Invoice</span>
           </button>
+
+          <button 
+            type="button"
+            onClick={handleLockSystem}
+            className="flex items-center gap-3 p-3 w-full rounded-lg transition-all cursor-pointer text-left hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 font-medium"
+            id="btn-sidebar-lock-pin"
+            title="Kunci Kasir dengan PIN"
+          >
+            <Lock size={18} />
+            <span className="text-sm whitespace-nowrap">Kunci Kasir (PIN)</span>
+          </button>
         </nav>
         
         <div className="p-4 border-t border-slate-800 hidden lg:block">
@@ -1072,6 +1293,15 @@ export default function CashierDashboard() {
             >
               <Settings size={18} className="text-slate-500" />
               Pengaturan Invoice
+            </button>
+            <button
+              onClick={handleLockSystem}
+              className="flex items-center gap-2 px-3.5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm shadow-sm transition-all active:scale-95 cursor-pointer"
+              id="btn-lock-pin-header"
+              title="Kunci dashboard kasir dengan PIN"
+            >
+              <Lock size={18} className="text-slate-600" />
+              <span>Kunci Kasir</span>
             </button>
             <button
               onClick={() => {
@@ -2766,6 +2996,51 @@ export default function CashierDashboard() {
                     className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 resize-none"
                     placeholder="Contoh: Invoice ini merupakan dokumen digital resmi yang sah..."
                   />
+                </div>
+              </div>
+
+              {/* Seksi 4: Keamanan & PIN Kasir */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100/80 space-y-3">
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider text-left flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck size={14} className="text-blue-600" />
+                    KEAMANAN & PIN KASIR
+                  </span>
+                  <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold">
+                    PIN Utama
+                  </span>
+                </h4>
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1 text-left">
+                    PIN Akses Kasir (4 - 6 Angka)*
+                  </label>
+                  <div className="relative max-w-xs">
+                    <input 
+                      type={showPinInSettings ? "text" : "password"}
+                      required
+                      maxLength={6}
+                      value={settingsDraft.adminPin || '1234'}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setSettingsDraft({ ...settingsDraft, adminPin: val });
+                      }}
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-sm font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500 tracking-widest"
+                      placeholder="1234"
+                      id="input-settings-pin"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPinInSettings(!showPinInSettings)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title={showPinInSettings ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                      id="btn-toggle-settings-pin"
+                    >
+                      {showPinInSettings ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed text-left">
+                    PIN ini mengamankan dashboard kasir sehingga jika pelanggan menghapus parameter tautan invoice, mereka akan terhalang layar PIN ini dan tidak bisa mengakses data toko. (PIN Default: <strong>1234</strong>)
+                  </p>
                 </div>
               </div>
 

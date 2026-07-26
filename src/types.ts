@@ -108,4 +108,5 @@ export interface InvoiceSettings {
   qrisUrl?: string;
   bankAccounts: BankAccount[];
   additionalNotes?: string;
+  adminPin?: string;
 }

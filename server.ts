@@ -85,7 +85,8 @@ function readSettings(): InvoiceSettings {
             isVA: false
           }
         ],
-        additionalNotes: "Invoice ini merupakan dokumen digital resmi yang sah. Segala perubahan status terdokumentasi di sistem kasir pusat."
+        additionalNotes: "Invoice ini merupakan dokumen digital resmi yang sah. Segala perubahan status terdokumentasi di sistem kasir pusat.",
+        adminPin: "1234"
       };
       fs.writeFileSync(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2), "utf8");
       return defaultSettings;
