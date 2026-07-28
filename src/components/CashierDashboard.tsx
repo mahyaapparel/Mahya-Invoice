@@ -389,9 +389,12 @@ export default function CashierDashboard() {
   const longStandardQty = Number(formData.sizeS_long || 0) + Number(formData.sizeM_long || 0) + Number(formData.sizeL_long || 0) + Number(formData.sizeXL_long || 0);
   const longXXLQty = Number(formData.sizeXXL_long || 0);
 
-  const getEffectivePrice = (addVal: number) => {
-    if (!addVal || addVal <= 0) return basePrice;
-    if (addVal < basePrice) return basePrice + addVal;
+  const getEffectivePrice = (addVal: number, defaultBase: number = basePrice) => {
+    if (addVal === undefined || addVal === null || addVal === 0) return defaultBase;
+    if (addVal < 0) return Math.max(0, defaultBase + addVal);
+    if (defaultBase > 0 && addVal < (defaultBase / 2)) {
+      return defaultBase + addVal;
+    }
     return addVal;
   };
 
@@ -405,9 +408,13 @@ export default function CashierDashboard() {
   customSizesList.forEach((item) => {
     const itemShort = Number(item.short) || 0;
     const itemLong = Number(item.long) || 0;
-    const itemShortPrice = (item.priceShort && item.priceShort > 0) ? getEffectivePrice(item.priceShort) : effCustom;
+    const itemShortPrice = (item.priceShort !== undefined && item.priceShort !== 0) 
+      ? getEffectivePrice(item.priceShort, basePrice) 
+      : effCustom;
     const longSleeveDiff = effLongStandard > basePrice ? (effLongStandard - basePrice) : 0;
-    const itemLongPrice = (item.priceLong && item.priceLong > 0) ? getEffectivePrice(item.priceLong) : (itemShortPrice + longSleeveDiff);
+    const itemLongPrice = (item.priceLong !== undefined && item.priceLong !== 0) 
+      ? getEffectivePrice(item.priceLong, basePrice + longSleeveDiff) 
+      : (itemShortPrice + longSleeveDiff);
 
     customSizesTotalPrice += (itemShort * itemShortPrice) + (itemLong * itemLongPrice);
   });
@@ -2159,18 +2166,17 @@ export default function CashierDashboard() {
                                 </label>
                                 <input
                                   type="number"
-                                  min="0"
                                   value={item.priceShort || ''}
                                   onChange={(e) => {
                                     const updated = [...(formData.customSizes || [])];
                                     updated[index] = {
                                       ...updated[index],
-                                      priceShort: Math.max(0, parseInt(e.target.value) || 0)
+                                      priceShort: parseInt(e.target.value) || 0
                                     };
                                     setFormData({ ...formData, customSizes: updated });
                                   }}
                                   className="w-full bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-amber-500 text-xs font-mono font-bold text-slate-800"
-                                  placeholder={`Standar: ${basePrice ? basePrice.toLocaleString('id-ID') : '75000'}`}
+                                  placeholder={`Standar: ${basePrice ? basePrice.toLocaleString('id-ID') : '75000'} (Anak e.g. 65000 atau -10000)`}
                                   id={`input-price-custom-${index}-short`}
                                 />
                                 <span className="text-[9px] text-amber-700 mt-0.5 block font-semibold">
@@ -2184,13 +2190,12 @@ export default function CashierDashboard() {
                                 </label>
                                 <input
                                   type="number"
-                                  min="0"
                                   value={item.priceLong || ''}
                                   onChange={(e) => {
                                     const updated = [...(formData.customSizes || [])];
                                     updated[index] = {
                                       ...updated[index],
-                                      priceLong: Math.max(0, parseInt(e.target.value) || 0)
+                                      priceLong: parseInt(e.target.value) || 0
                                     };
                                     setFormData({ ...formData, customSizes: updated });
                                   }}

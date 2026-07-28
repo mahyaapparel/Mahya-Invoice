@@ -471,30 +471,29 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
                           const basePrice = order.unitPrice || 0;
                           if (basePrice <= 0) return null;
 
-                          const getEff = (val: number | undefined, base: number) => {
-                            if (!val || val <= 0) return base;
-                            return val < base ? base + val : val;
+                          const getEffectivePrice = (addVal: number | undefined, defaultBase: number = basePrice) => {
+                            if (addVal === undefined || addVal === null || addVal === 0) return defaultBase;
+                            if (addVal < 0) return Math.max(0, defaultBase + addVal);
+                            if (defaultBase > 0 && addVal < (defaultBase / 2)) {
+                              return defaultBase + addVal;
+                            }
+                            return addVal;
                           };
 
-                          const getDelta = (val: number | undefined, base: number) => {
-                            if (!val || val <= 0) return 0;
-                            return val < base ? val : val - base;
-                          };
+                          const effXXL = getEffectivePrice(order.addPriceXXL);
+                          const deltaXXL = effXXL - basePrice;
 
-                          const effXXL = getEff(order.addPriceXXL, basePrice);
-                          const deltaXXL = getDelta(order.addPriceXXL, basePrice);
-
-                          const effLong = getEff(order.addPriceLongSleeve, basePrice);
-                          const deltaLong = getDelta(order.addPriceLongSleeve, basePrice);
+                          const effLong = getEffectivePrice(order.addPriceLongSleeve);
+                          const deltaLong = effLong - basePrice;
 
                           const rawLongXXL = order.addPriceLongSleeveXXL || 0;
-                          const effLongXXL = rawLongXXL > 0 
-                            ? (rawLongXXL < basePrice ? basePrice + rawLongXXL : rawLongXXL)
+                          const effLongXXL = rawLongXXL !== 0 
+                            ? getEffectivePrice(rawLongXXL, effXXL)
                             : (effXXL + deltaLong);
                           const deltaLongXXL = effLongXXL - basePrice;
 
-                          const effCustomDefault = getEff(order.addPriceCustom, basePrice);
-                          const deltaCustomDefault = getDelta(order.addPriceCustom, basePrice);
+                          const effCustomDefault = getEffectivePrice(order.addPriceCustom);
+                          const deltaCustomDefault = effCustomDefault - basePrice;
 
                           // Check quantities ordered across all sizes & sleeves
                           const qtyXXLShort = order.sizeXXL_short ?? 0;
@@ -510,77 +509,120 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
                             c => (c.short || 0) > 0 || (c.long || 0) > 0 || (c.name && c.name.trim() !== '')
                           );
 
-                          const items: { label: string; surchargeStr: string }[] = [];
+                          const items: { label: string; surchargeStr: string; isDiscount?: boolean }[] = [];
 
-                          // 1. Size XXL surcharge (applies to any XXL shirt)
-                          if (totalXXLQty > 0 && deltaXXL > 0) {
-                            items.push({
-                              label: 'Tambahan Size XXL',
-                              surchargeStr: `+${formatRupiah(deltaXXL)}/pcs`
-                            });
+                          // 1. Size XXL surcharge / discount
+                          if (totalXXLQty > 0 && Math.abs(deltaXXL) > 0) {
+                            if (deltaXXL > 0) {
+                              items.push({
+                                label: 'Tambahan Size XXL',
+                                surchargeStr: `+${formatRupiah(deltaXXL)}/pcs`
+                              });
+                            } else {
+                              items.push({
+                                label: 'Potongan Size XXL',
+                                surchargeStr: `-${formatRupiah(Math.abs(deltaXXL))}/pcs`,
+                                isDiscount: true
+                              });
+                            }
                           }
 
-                          // 2. Lengan Panjang surcharge (applies to any long sleeve shirt)
-                          if (totalLongQty > 0 && deltaLong > 0) {
-                            items.push({
-                              label: 'Tambahan Lengan Panjang',
-                              surchargeStr: `+${formatRupiah(deltaLong)}/pcs`
-                            });
+                          // 2. Lengan Panjang surcharge / discount
+                          if (totalLongQty > 0 && Math.abs(deltaLong) > 0) {
+                            if (deltaLong > 0) {
+                              items.push({
+                                label: 'Tambahan Lengan Panjang',
+                                surchargeStr: `+${formatRupiah(deltaLong)}/pcs`
+                              });
+                            } else {
+                              items.push({
+                                label: 'Potongan Lengan Panjang',
+                                surchargeStr: `-${formatRupiah(Math.abs(deltaLong))}/pcs`,
+                                isDiscount: true
+                              });
+                            }
                           }
 
                           // 3. Special XXL Long Sleeve override surcharge
                           const expectedComboDelta = deltaXXL + deltaLong;
-                          if (qtyXXLLong > 0 && deltaLongXXL > 0 && Math.abs(deltaLongXXL - expectedComboDelta) > 1) {
+                          if (qtyXXLLong > 0 && Math.abs(deltaLongXXL - expectedComboDelta) > 1) {
                             const diff = deltaLongXXL - expectedComboDelta;
                             items.push({
                               label: 'Tambahan Khusus Lengan Panjang XXL',
-                              surchargeStr: `${diff > 0 ? '+' : ''}${formatRupiah(diff)}/pcs`
+                              surchargeStr: `${diff > 0 ? '+' : '-'}${formatRupiah(Math.abs(diff))}/pcs`,
+                              isDiscount: diff < 0
                             });
                           }
 
-                          // 4. Custom sizes
+                          // 4. Custom sizes (termasuk Ukuran Anak, 3XL, dll)
                           activeCustoms.forEach((cs, idx) => {
                             const csName = cs.name || `Custom ${idx + 1}`;
                             const csShortQty = cs.short || 0;
                             const csLongQty = cs.long || 0;
 
                             if (csShortQty > 0) {
-                              let pDelta = 0;
-                              if (cs.priceShort && cs.priceShort > 0) {
-                                pDelta = getDelta(cs.priceShort, basePrice);
-                              } else if (deltaCustomDefault > 0) {
-                                pDelta = deltaCustomDefault;
+                              let pEff = basePrice;
+                              if (cs.priceShort !== undefined && cs.priceShort !== 0) {
+                                pEff = getEffectivePrice(cs.priceShort, basePrice);
+                              } else if (deltaCustomDefault !== 0) {
+                                pEff = effCustomDefault;
                               }
+                              const pDelta = pEff - basePrice;
+
                               if (pDelta > 0) {
                                 items.push({
                                   label: `Tambahan ${csName} (Pendek)`,
                                   surchargeStr: `+${formatRupiah(pDelta)}/pcs`
                                 });
+                              } else if (pDelta < 0) {
+                                items.push({
+                                  label: `Potongan ${csName} (Pendek)`,
+                                  surchargeStr: `-${formatRupiah(Math.abs(pDelta))}/pcs`,
+                                  isDiscount: true
+                                });
                               }
                             }
 
                             if (csLongQty > 0) {
-                              let pDelta = 0;
-                              if (cs.priceLong && cs.priceLong > 0) {
-                                const pEff = getEff(cs.priceLong, effLong > basePrice ? effLong : basePrice);
-                                pDelta = pEff > basePrice ? pEff - basePrice : 0;
-                              } else if (deltaCustomDefault > 0 || deltaLong > 0) {
-                                pDelta = deltaCustomDefault + deltaLong;
+                              let pEffLong = basePrice + deltaLong;
+                              if (cs.priceLong !== undefined && cs.priceLong !== 0) {
+                                pEffLong = getEffectivePrice(cs.priceLong, basePrice + deltaLong);
+                              } else {
+                                let pEffShort = (cs.priceShort !== undefined && cs.priceShort !== 0) 
+                                  ? getEffectivePrice(cs.priceShort, basePrice) 
+                                  : effCustomDefault;
+                                pEffLong = pEffShort + deltaLong;
                               }
 
-                              if (deltaLong > 0 && pDelta >= deltaLong) {
-                                const customSizeExtra = pDelta - deltaLong;
-                                if (customSizeExtra > 0) {
+                              const pDeltaTotal = pEffLong - basePrice;
+
+                              if (deltaLong > 0) {
+                                const customDiff = pDeltaTotal - deltaLong;
+                                if (customDiff > 0) {
                                   items.push({
                                     label: `Tambahan ${csName}`,
-                                    surchargeStr: `+${formatRupiah(customSizeExtra)}/pcs`
+                                    surchargeStr: `+${formatRupiah(customDiff)}/pcs`
+                                  });
+                                } else if (customDiff < 0) {
+                                  items.push({
+                                    label: `Potongan ${csName}`,
+                                    surchargeStr: `-${formatRupiah(Math.abs(customDiff))}/pcs`,
+                                    isDiscount: true
                                   });
                                 }
-                              } else if (pDelta > 0) {
-                                items.push({
-                                  label: `Tambahan ${csName} (Panjang)`,
-                                  surchargeStr: `+${formatRupiah(pDelta)}/pcs`
-                                });
+                              } else {
+                                if (pDeltaTotal > 0) {
+                                  items.push({
+                                    label: `Tambahan ${csName} (Panjang)`,
+                                    surchargeStr: `+${formatRupiah(pDeltaTotal)}/pcs`
+                                  });
+                                } else if (pDeltaTotal < 0) {
+                                  items.push({
+                                    label: `Potongan ${csName} (Panjang)`,
+                                    surchargeStr: `-${formatRupiah(Math.abs(pDeltaTotal))}/pcs`,
+                                    isDiscount: true
+                                  });
+                                }
                               }
                             }
                           });
@@ -590,16 +632,22 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
                           return (
                             <div className="mt-2 pt-2 border-t border-slate-200/80 w-full text-left print:pt-1">
                               <span className="text-[9px] font-extrabold uppercase text-blue-900 block mb-1 tracking-wider">
-                                Rincian Tambahan Harga Ukuran:
+                                Rincian Tambahan / Potongan Harga Ukuran:
                               </span>
                               <div className="flex flex-wrap gap-1">
                                 {items.map((item, idx) => (
                                   <span
                                     key={idx}
-                                    className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded font-semibold border bg-amber-50 text-amber-900 border-amber-200/80"
+                                    className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded font-semibold border ${
+                                      item.isDiscount
+                                        ? 'bg-emerald-50 text-emerald-900 border-emerald-200/80'
+                                        : 'bg-amber-50 text-amber-900 border-amber-200/80'
+                                    }`}
                                   >
                                     <span>{item.label}:</span>
-                                    <span className="font-mono font-bold text-amber-800">{item.surchargeStr}</span>
+                                    <span className={`font-mono font-bold ${item.isDiscount ? 'text-emerald-800' : 'text-amber-800'}`}>
+                                      {item.surchargeStr}
+                                    </span>
                                   </span>
                                 ))}
                               </div>
