@@ -685,48 +685,34 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                   c => (c.short || 0) > 0 || (c.long || 0) > 0 || (c.name && c.name.trim() !== '')
                 );
 
-                const items: { label: string; surchargeStr: string; isDiscount?: boolean }[] = [];
+                const items: { label: string; priceStr: string }[] = [];
 
-                // 1. Size XXL surcharge / discount
-                if (totalXXLQty > 0 && Math.abs(deltaXXL) > 0) {
-                  if (deltaXXL > 0) {
-                    items.push({
-                      label: 'Tambahan Size XXL',
-                      surchargeStr: `+${formatRupiah(deltaXXL)}/pcs`
-                    });
-                  } else {
-                    items.push({
-                      label: 'Potongan Size XXL',
-                      surchargeStr: `-${formatRupiah(Math.abs(deltaXXL))}/pcs`,
-                      isDiscount: true
-                    });
-                  }
-                }
-
-                // 2. Lengan Panjang surcharge / discount
-                if (totalLongQty > 0 && Math.abs(deltaLong) > 0) {
-                  if (deltaLong > 0) {
-                    items.push({
-                      label: 'Tambahan Lengan Panjang',
-                      surchargeStr: `+${formatRupiah(deltaLong)}/pcs`
-                    });
-                  } else {
-                    items.push({
-                      label: 'Potongan Lengan Panjang',
-                      surchargeStr: `-${formatRupiah(Math.abs(deltaLong))}/pcs`,
-                      isDiscount: true
-                    });
-                  }
-                }
-
-                // 3. Special XXL Long Sleeve override surcharge
-                const expectedComboDelta = deltaXXL + deltaLong;
-                if (qtyXXLLong > 0 && Math.abs(deltaLongXXL - expectedComboDelta) > 1) {
-                  const diff = deltaLongXXL - expectedComboDelta;
+                // 1. Size XXL (Pendek)
+                if (qtyXXLShort > 0 && effXXL !== basePrice) {
                   items.push({
-                    label: 'Tambahan Khusus Lengan Panjang XXL',
-                    surchargeStr: `${diff > 0 ? '+' : '-'}${formatRupiah(Math.abs(diff))}/pcs`,
-                    isDiscount: diff < 0
+                    label: 'Size XXL (Pendek)',
+                    priceStr: `${formatRupiah(effXXL)}/pcs`
+                  });
+                } else if (totalXXLQty > 0 && qtyXXLLong === 0 && effXXL !== basePrice) {
+                  items.push({
+                    label: 'Size XXL',
+                    priceStr: `${formatRupiah(effXXL)}/pcs`
+                  });
+                }
+
+                // 2. Lengan Panjang (S-XL)
+                if (stdLongQty > 0 && effLong !== basePrice) {
+                  items.push({
+                    label: 'Lengan Panjang (S-XL)',
+                    priceStr: `${formatRupiah(effLong)}/pcs`
+                  });
+                }
+
+                // 3. Size XXL (Panjang)
+                if (qtyXXLLong > 0 && effLongXXL !== basePrice) {
+                  items.push({
+                    label: 'Size XXL (Panjang)',
+                    priceStr: `${formatRupiah(effLongXXL)}/pcs`
                   });
                 }
 
@@ -743,18 +729,10 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                     } else if (deltaCustomDefault !== 0) {
                       pEff = effCustomDefault;
                     }
-                    const pDelta = pEff - basePrice;
-
-                    if (pDelta > 0) {
+                    if (pEff !== basePrice) {
                       items.push({
-                        label: `Tambahan ${csName} (Pendek)`,
-                        surchargeStr: `+${formatRupiah(pDelta)}/pcs`
-                      });
-                    } else if (pDelta < 0) {
-                      items.push({
-                        label: `Potongan ${csName} (Pendek)`,
-                        surchargeStr: `-${formatRupiah(Math.abs(pDelta))}/pcs`,
-                        isDiscount: true
+                        label: csLongQty > 0 ? `${csName} (Pendek)` : csName,
+                        priceStr: `${formatRupiah(pEff)}/pcs`
                       });
                     }
                   }
@@ -769,36 +747,11 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                         : effCustomDefault;
                       pEffLong = pEffShort + deltaLong;
                     }
-
-                    const pDeltaTotal = pEffLong - basePrice;
-
-                    if (deltaLong > 0) {
-                      const customDiff = pDeltaTotal - deltaLong;
-                      if (customDiff > 0) {
-                        items.push({
-                          label: `Tambahan ${csName}`,
-                          surchargeStr: `+${formatRupiah(customDiff)}/pcs`
-                        });
-                      } else if (customDiff < 0) {
-                        items.push({
-                          label: `Potongan ${csName}`,
-                          surchargeStr: `-${formatRupiah(Math.abs(customDiff))}/pcs`,
-                          isDiscount: true
-                        });
-                      }
-                    } else {
-                      if (pDeltaTotal > 0) {
-                        items.push({
-                          label: `Tambahan ${csName} (Panjang)`,
-                          surchargeStr: `+${formatRupiah(pDeltaTotal)}/pcs`
-                        });
-                      } else if (pDeltaTotal < 0) {
-                        items.push({
-                          label: `Potongan ${csName} (Panjang)`,
-                          surchargeStr: `-${formatRupiah(Math.abs(pDeltaTotal))}/pcs`,
-                          isDiscount: true
-                        });
-                      }
+                    if (pEffLong !== basePrice) {
+                      items.push({
+                        label: csShortQty > 0 ? `${csName} (Panjang)` : `${csName} (Panjang)`,
+                        priceStr: `${formatRupiah(pEffLong)}/pcs`
+                      });
                     }
                   }
                 });
@@ -808,21 +761,17 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                 return (
                   <div className="mt-3 border-t border-slate-100 pt-2.5">
                     <span className="text-xs text-slate-500 font-extrabold uppercase block mb-1.5 tracking-wider">
-                      Skema Tambahan / Potongan Harga Ukuran:
+                      Rincian Harga Satuan Ukuran / Variasi:
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {items.map((item, idx) => (
                         <span
                           key={idx}
-                          className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold border ${
-                            item.isDiscount
-                              ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                              : 'bg-amber-50 text-amber-900 border-amber-200'
-                          }`}
+                          className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold border bg-blue-50 text-blue-900 border-blue-200"
                         >
                           <span>{item.label}:</span>
-                          <span className={`font-mono font-bold ${item.isDiscount ? 'text-emerald-800' : 'text-amber-800'}`}>
-                            {item.surchargeStr}
+                          <span className="font-mono font-bold text-blue-950">
+                            {item.priceStr}
                           </span>
                         </span>
                       ))}
