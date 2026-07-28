@@ -2145,8 +2145,13 @@ export default function CashierDashboard() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {formData.customSizes.map((item, index) => {
-                        const itemShortPrice = (item.priceShort && item.priceShort > 0) ? getEffectivePrice(item.priceShort) : basePrice;
-                        const itemLongPrice = (item.priceLong && item.priceLong > 0) ? getEffectivePrice(item.priceLong) : effLongStandard;
+                        const itemShortPrice = (item.priceShort !== undefined && item.priceShort !== 0) 
+                          ? getEffectivePrice(item.priceShort, basePrice) 
+                          : effCustom;
+                        const longSleeveDiff = effLongStandard > basePrice ? (effLongStandard - basePrice) : 0;
+                        const itemLongPrice = (item.priceLong !== undefined && item.priceLong !== 0) 
+                          ? getEffectivePrice(item.priceLong, basePrice + longSleeveDiff) 
+                          : (itemShortPrice + longSleeveDiff);
 
                         return (
                           <div key={index} className="bg-white p-3 rounded-xl border border-amber-200 shadow-sm space-y-2">
