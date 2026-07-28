@@ -496,86 +496,125 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
 
             <div className="space-y-3">
               <div>
-                <span className="text-xs text-slate-400 block font-medium mb-1.5">Rincian Ukuran & Type Lengan:</span>
+                <div className="mb-1.5">
+                  <span className="text-xs text-slate-400 font-medium">Rincian Ukuran & Type Lengan:</span>
+                </div>
                 
-                {(order.sizeS_short !== undefined || order.sizeS_long !== undefined || order.sizeM_short !== undefined || order.sizeM_long !== undefined || (order.customSizes && order.customSizes.length > 0)) ? (
+                {(order.sizeS_short !== undefined || order.sizeS_long !== undefined || order.sizeM_short !== undefined || order.sizeM_long !== undefined || (order.customSizes && order.customSizes.length > 0) || order.sizeS > 0 || order.sizeM > 0 || order.sizeL > 0 || order.sizeXL > 0 || order.sizeXXL > 0) ? (
                   <div className="overflow-x-auto max-w-full">
                     {(() => {
                       const activeCustomSizes = (order.customSizes || []).filter(
                         c => (c.short || 0) > 0 || (c.long || 0) > 0 || (c.name && c.name.trim() !== '')
                       );
 
+                      const showS = order.sizeS > 0 || (order.sizeS_short || 0) > 0 || (order.sizeS_long || 0) > 0;
+                      const showM = order.sizeM > 0 || (order.sizeM_short || 0) > 0 || (order.sizeM_long || 0) > 0;
+                      const showL = order.sizeL > 0 || (order.sizeL_short || 0) > 0 || (order.sizeL_long || 0) > 0;
+                      const showXL = order.sizeXL > 0 || (order.sizeXL_short || 0) > 0 || (order.sizeXL_long || 0) > 0;
+                      const showXXL = order.sizeXXL > 0 || (order.sizeXXL_short || 0) > 0 || (order.sizeXXL_long || 0) > 0;
+
+                      const sShort = showS ? (order.sizeS_short ?? order.sizeS ?? 0) : 0;
+                      const mShort = showM ? (order.sizeM_short ?? order.sizeM ?? 0) : 0;
+                      const lShort = showL ? (order.sizeL_short ?? order.sizeL ?? 0) : 0;
+                      const xlShort = showXL ? (order.sizeXL_short ?? order.sizeXL ?? 0) : 0;
+                      const xxlShort = showXXL ? (order.sizeXXL_short ?? order.sizeXXL ?? 0) : 0;
+
+                      const sLong = showS ? (order.sizeS_long ?? 0) : 0;
+                      const mLong = showM ? (order.sizeM_long ?? 0) : 0;
+                      const lLong = showL ? (order.sizeL_long ?? 0) : 0;
+                      const xlLong = showXL ? (order.sizeXL_long ?? 0) : 0;
+                      const xxlLong = showXXL ? (order.sizeXXL_long ?? 0) : 0;
+
+                      const customShortTotal = activeCustomSizes.reduce((sum, cs) => sum + (Number(cs.short) || 0), 0);
+                      const customLongTotal = activeCustomSizes.reduce((sum, cs) => sum + (Number(cs.long) || 0), 0);
+
+                      const calculatedPendekTotal = sShort + mShort + lShort + xlShort + xxlShort + customShortTotal;
+                      const calculatedPanjangTotal = sLong + mLong + lLong + xlLong + xxlLong + customLongTotal;
+
+                      const finalPendek = Math.max(calculatedPendekTotal, Number(order.lenganPendek) || 0);
+                      const finalPanjang = Math.max(calculatedPanjangTotal, Number(order.lenganPanjang) || 0);
+                      const finalTotalQty = Math.max(calculatedPendekTotal + calculatedPanjangTotal, Number(order.quantity) || 0);
+
                       return (
-                        <table className="text-[11px] border-collapse border border-slate-200 text-center bg-white rounded-lg overflow-hidden w-full max-w-md">
-                          <thead>
-                            <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                              <th className="border-r border-slate-200 px-2 py-1 text-left font-extrabold text-[10px] uppercase text-slate-500">
-                                Ukuran
-                              </th>
-                              {order.sizeS > 0 && <th className="border-r border-slate-200 px-2 py-1 font-bold">S</th>}
-                              {order.sizeM > 0 && <th className="border-r border-slate-200 px-2 py-1 font-bold">M</th>}
-                              {order.sizeL > 0 && <th className="border-r border-slate-200 px-2 py-1 font-bold">L</th>}
-                              {order.sizeXL > 0 && <th className="border-r border-slate-200 px-2 py-1 font-bold">XL</th>}
-                              {order.sizeXXL > 0 && <th className="border-r border-slate-200 px-2 py-1 font-bold">XXL</th>}
-                              {activeCustomSizes.map((cs, idx) => (
-                                <th key={idx} className="border-r border-slate-200 px-2 py-1 font-extrabold text-blue-700 bg-blue-50/80">
-                                  {cs.name || `Custom ${idx + 1}`}
+                        <div className="space-y-2">
+                          <table className="text-[11px] border-collapse border border-slate-200 text-center bg-white rounded-xl overflow-hidden w-full shadow-sm">
+                            <thead>
+                              <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                <th className="border-r border-slate-200 px-2 py-1.5 text-left font-extrabold text-[10px] uppercase text-slate-500">
+                                  Ukuran
                                 </th>
-                              ))}
-                              <th className="px-2 py-1 font-extrabold bg-slate-200 text-slate-800">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200 text-slate-700 font-medium">
-                            <tr>
-                              <td className="border-r border-slate-200 px-2 py-1 font-bold text-slate-600 text-left bg-slate-50">
-                                Pendek
-                              </td>
-                              {order.sizeS > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeS_short ?? order.sizeS}</td>}
-                              {order.sizeM > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeM_short ?? order.sizeM}</td>}
-                              {order.sizeL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeL_short ?? order.sizeL}</td>}
-                              {order.sizeXL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeXL_short ?? order.sizeXL}</td>}
-                              {order.sizeXXL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeXXL_short ?? order.sizeXXL}</td>}
-                              {activeCustomSizes.map((cs, idx) => (
-                                <td key={idx} className="border-r border-slate-200 px-2 py-1 font-semibold text-slate-800 bg-blue-50/30">
-                                  {cs.short || 0}
+                                {showS && <th className="border-r border-slate-200 px-2 py-1.5 font-bold">S</th>}
+                                {showM && <th className="border-r border-slate-200 px-2 py-1.5 font-bold">M</th>}
+                                {showL && <th className="border-r border-slate-200 px-2 py-1.5 font-bold">L</th>}
+                                {showXL && <th className="border-r border-slate-200 px-2 py-1.5 font-bold">XL</th>}
+                                {showXXL && <th className="border-r border-slate-200 px-2 py-1.5 font-bold">XXL</th>}
+                                {activeCustomSizes.map((cs, idx) => (
+                                  <th key={idx} className="border-r border-slate-200 px-2 py-1.5 font-extrabold text-blue-900 bg-blue-100/80">
+                                    {cs.name || `Custom ${idx + 1}`}
+                                  </th>
+                                ))}
+                                <th className="px-3 py-1.5 font-extrabold bg-blue-900 text-white">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 text-slate-700 font-medium">
+                              <tr>
+                                <td className="border-r border-slate-200 px-2 py-1 font-bold text-slate-600 text-left bg-slate-50">
+                                  Pendek
                                 </td>
-                              ))}
-                              <td className="px-2 py-1 font-bold bg-slate-50 text-emerald-700">{order.lenganPendek || 0}</td>
-                            </tr>
-                            <tr>
-                              <td className="border-r border-slate-200 px-2 py-1 font-bold text-slate-600 text-left bg-slate-50">
-                                Panjang
-                              </td>
-                              {order.sizeS > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeS_long ?? 0}</td>}
-                              {order.sizeM > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeM_long ?? 0}</td>}
-                              {order.sizeL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeL_long ?? 0}</td>}
-                              {order.sizeXL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeXL_long ?? 0}</td>}
-                              {order.sizeXXL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeXXL_long ?? 0}</td>}
-                              {activeCustomSizes.map((cs, idx) => (
-                                <td key={idx} className="border-r border-slate-200 px-2 py-1 font-semibold text-slate-800 bg-blue-50/30">
-                                  {cs.long || 0}
+                                {showS && <td className="border-r border-slate-200 px-2 py-1">{sShort}</td>}
+                                {showM && <td className="border-r border-slate-200 px-2 py-1">{mShort}</td>}
+                                {showL && <td className="border-r border-slate-200 px-2 py-1">{lShort}</td>}
+                                {showXL && <td className="border-r border-slate-200 px-2 py-1">{xlShort}</td>}
+                                {showXXL && <td className="border-r border-slate-200 px-2 py-1">{xxlShort}</td>}
+                                {activeCustomSizes.map((cs, idx) => (
+                                  <td key={idx} className="border-r border-slate-200 px-2 py-1 font-semibold text-blue-950 bg-blue-50/40">
+                                    {cs.short || 0}
+                                  </td>
+                                ))}
+                                <td className="px-2 py-1 font-extrabold bg-emerald-50 text-emerald-800">{finalPendek}</td>
+                              </tr>
+                              <tr>
+                                <td className="border-r border-slate-200 px-2 py-1 font-bold text-slate-600 text-left bg-slate-50">
+                                  Panjang
                                 </td>
-                              ))}
-                              <td className="px-2 py-1 font-bold bg-slate-50 text-indigo-700">{order.lenganPanjang || 0}</td>
-                            </tr>
-                            <tr className="font-extrabold bg-slate-100 border-t border-slate-200">
-                              <td className="border-r border-slate-200 px-2 py-1 text-left text-slate-800">
-                                Jumlah
-                              </td>
-                              {order.sizeS > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeS}</td>}
-                              {order.sizeM > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeM}</td>}
-                              {order.sizeL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeL}</td>}
-                              {order.sizeXL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeXL}</td>}
-                              {order.sizeXXL > 0 && <td className="border-r border-slate-200 px-2 py-1">{order.sizeXXL}</td>}
-                              {activeCustomSizes.map((cs, idx) => (
-                                <td key={idx} className="border-r border-slate-200 px-2 py-1 font-black text-blue-900 bg-blue-100/70">
-                                  {(cs.short || 0) + (cs.long || 0)}
+                                {showS && <td className="border-r border-slate-200 px-2 py-1">{sLong}</td>}
+                                {showM && <td className="border-r border-slate-200 px-2 py-1">{mLong}</td>}
+                                {showL && <td className="border-r border-slate-200 px-2 py-1">{lLong}</td>}
+                                {showXL && <td className="border-r border-slate-200 px-2 py-1">{xlLong}</td>}
+                                {showXXL && <td className="border-r border-slate-200 px-2 py-1">{xxlLong}</td>}
+                                {activeCustomSizes.map((cs, idx) => (
+                                  <td key={idx} className="border-r border-slate-200 px-2 py-1 font-semibold text-blue-950 bg-blue-50/40">
+                                    {cs.long || 0}
+                                  </td>
+                                ))}
+                                <td className="px-2 py-1 font-extrabold bg-indigo-50 text-indigo-800">{finalPanjang}</td>
+                              </tr>
+                              <tr className="font-extrabold bg-slate-100 border-t-2 border-slate-300">
+                                <td className="border-r border-slate-200 px-2 py-1.5 text-left text-slate-900 font-black">
+                                  Jumlah
                                 </td>
-                              ))}
-                              <td className="px-2 py-1 bg-blue-100 text-blue-900 font-black">{order.quantity}</td>
-                            </tr>
-                          </tbody>
-                        </table>
+                                {showS && <td className="border-r border-slate-200 px-2 py-1.5 font-bold">{sShort + sLong}</td>}
+                                {showM && <td className="border-r border-slate-200 px-2 py-1.5 font-bold">{mShort + mLong}</td>}
+                                {showL && <td className="border-r border-slate-200 px-2 py-1.5 font-bold">{lShort + lLong}</td>}
+                                {showXL && <td className="border-r border-slate-200 px-2 py-1.5 font-bold">{xlShort + xlLong}</td>}
+                                {showXXL && <td className="border-r border-slate-200 px-2 py-1.5 font-bold">{xxlShort + xxlLong}</td>}
+                                {activeCustomSizes.map((cs, idx) => (
+                                  <td key={idx} className="border-r border-slate-200 px-2 py-1.5 font-black text-blue-900 bg-blue-100/90">
+                                    {(cs.short || 0) + (cs.long || 0)}
+                                  </td>
+                                ))}
+                                <td className="px-3 py-1.5 bg-blue-600 text-white font-black text-xs shadow-inner">
+                                  {finalTotalQty} pcs
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 px-1 pt-0.5">
+                            <span className="italic">* Total sudah termasuk seluruh ukuran standar (S-XXL) dan ukuran custom tambahan.</span>
+                            <span className="font-mono font-bold text-blue-800">Grand Total: {finalTotalQty} Pcs</span>
+                          </div>
+                        </div>
                       );
                     })()}
                   </div>
@@ -602,6 +641,147 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                   </p>
                 </div>
               )}
+
+              {/* Rincian Tambahan Harga Ukuran & Lengan */}
+              {(() => {
+                const basePrice = order.unitPrice || 0;
+                if (basePrice <= 0) return null;
+
+                const getEff = (val: number | undefined, base: number) => {
+                  if (!val || val <= 0) return base;
+                  return val < base ? base + val : val;
+                };
+
+                const getDelta = (val: number | undefined, base: number) => {
+                  if (!val || val <= 0) return 0;
+                  return val < base ? val : val - base;
+                };
+
+                const effXXL = getEff(order.addPriceXXL, basePrice);
+                const deltaXXL = getDelta(order.addPriceXXL, basePrice);
+
+                const effLong = getEff(order.addPriceLongSleeve, basePrice);
+                const deltaLong = getDelta(order.addPriceLongSleeve, basePrice);
+
+                const rawLongXXL = order.addPriceLongSleeveXXL || 0;
+                const effLongXXL = rawLongXXL > 0 
+                  ? (rawLongXXL < basePrice ? basePrice + rawLongXXL : rawLongXXL)
+                  : (effXXL + deltaLong);
+                const deltaLongXXL = effLongXXL - basePrice;
+
+                const effCustomDefault = getEff(order.addPriceCustom, basePrice);
+                const deltaCustomDefault = getDelta(order.addPriceCustom, basePrice);
+
+                // Check quantities ordered across all sizes & sleeves
+                const qtyXXLShort = order.sizeXXL_short ?? 0;
+                const qtyXXLLong = order.sizeXXL_long ?? 0;
+                const totalXXLQty = (order.sizeXXL_short !== undefined || order.sizeXXL_long !== undefined)
+                  ? (qtyXXLShort + qtyXXLLong)
+                  : (order.sizeXXL || 0);
+
+                const stdLongQty = (order.sizeS_long || 0) + (order.sizeM_long || 0) + (order.sizeL_long || 0) + (order.sizeXL_long || 0);
+                const totalLongQty = stdLongQty + qtyXXLLong + (order.lenganPanjang || 0);
+
+                const activeCustoms = (order.customSizes || []).filter(
+                  c => (c.short || 0) > 0 || (c.long || 0) > 0 || (c.name && c.name.trim() !== '')
+                );
+
+                const items: { label: string; surchargeStr: string }[] = [];
+
+                // 1. Size XXL surcharge (applies to any XXL shirt)
+                if (totalXXLQty > 0 && deltaXXL > 0) {
+                  items.push({
+                    label: 'Tambahan Size XXL',
+                    surchargeStr: `+${formatRupiah(deltaXXL)}/pcs`
+                  });
+                }
+
+                // 2. Lengan Panjang surcharge (applies to any long sleeve shirt)
+                if (totalLongQty > 0 && deltaLong > 0) {
+                  items.push({
+                    label: 'Tambahan Lengan Panjang',
+                    surchargeStr: `+${formatRupiah(deltaLong)}/pcs`
+                  });
+                }
+
+                // 3. Special XXL Long Sleeve override surcharge
+                const expectedComboDelta = deltaXXL + deltaLong;
+                if (qtyXXLLong > 0 && deltaLongXXL > 0 && Math.abs(deltaLongXXL - expectedComboDelta) > 1) {
+                  const diff = deltaLongXXL - expectedComboDelta;
+                  items.push({
+                    label: 'Tambahan Khusus Lengan Panjang XXL',
+                    surchargeStr: `${diff > 0 ? '+' : ''}${formatRupiah(diff)}/pcs`
+                  });
+                }
+
+                // 4. Custom sizes
+                activeCustoms.forEach((cs, idx) => {
+                  const csName = cs.name || `Custom ${idx + 1}`;
+                  const csShortQty = cs.short || 0;
+                  const csLongQty = cs.long || 0;
+
+                  if (csShortQty > 0) {
+                    let pDelta = 0;
+                    if (cs.priceShort && cs.priceShort > 0) {
+                      pDelta = getDelta(cs.priceShort, basePrice);
+                    } else if (deltaCustomDefault > 0) {
+                      pDelta = deltaCustomDefault;
+                    }
+                    if (pDelta > 0) {
+                      items.push({
+                        label: `Tambahan ${csName} (Pendek)`,
+                        surchargeStr: `+${formatRupiah(pDelta)}/pcs`
+                      });
+                    }
+                  }
+
+                  if (csLongQty > 0) {
+                    let pDelta = 0;
+                    if (cs.priceLong && cs.priceLong > 0) {
+                      const pEff = getEff(cs.priceLong, effLong > basePrice ? effLong : basePrice);
+                      pDelta = pEff > basePrice ? pEff - basePrice : 0;
+                    } else if (deltaCustomDefault > 0 || deltaLong > 0) {
+                      pDelta = deltaCustomDefault + deltaLong;
+                    }
+
+                    if (deltaLong > 0 && pDelta >= deltaLong) {
+                      const customSizeExtra = pDelta - deltaLong;
+                      if (customSizeExtra > 0) {
+                        items.push({
+                          label: `Tambahan ${csName}`,
+                          surchargeStr: `+${formatRupiah(customSizeExtra)}/pcs`
+                        });
+                      }
+                    } else if (pDelta > 0) {
+                      items.push({
+                        label: `Tambahan ${csName} (Panjang)`,
+                        surchargeStr: `+${formatRupiah(pDelta)}/pcs`
+                      });
+                    }
+                  }
+                });
+
+                if (items.length === 0) return null;
+
+                return (
+                  <div className="mt-3 border-t border-slate-100 pt-2.5">
+                    <span className="text-xs text-slate-500 font-extrabold uppercase block mb-1.5 tracking-wider">
+                      Skema Tambahan Harga Ukuran:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((item, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold border bg-amber-50 text-amber-900 border-amber-200"
+                        >
+                          <span>{item.label}:</span>
+                          <span className="font-mono font-bold text-amber-800">{item.surchargeStr}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               
               {order.notes && (
                 <div className="mt-4 border-t border-slate-50 pt-3">
@@ -762,10 +942,48 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
             </div>
 
             <div className="space-y-2 text-sm text-slate-600 mb-4">
-              <div className="flex justify-between">
-                <span>Subtotal ({order.quantity} pcs)</span>
-                <span className="font-mono text-slate-800">{formatRupiah(order.quantity * order.unitPrice)}</span>
-              </div>
+              {(() => {
+                const activeCustomSizes = (order.customSizes || []).filter(
+                  c => (c.short || 0) > 0 || (c.long || 0) > 0 || (c.name && c.name.trim() !== '')
+                );
+
+                const showS = order.sizeS > 0 || (order.sizeS_short || 0) > 0 || (order.sizeS_long || 0) > 0;
+                const showM = order.sizeM > 0 || (order.sizeM_short || 0) > 0 || (order.sizeM_long || 0) > 0;
+                const showL = order.sizeL > 0 || (order.sizeL_short || 0) > 0 || (order.sizeL_long || 0) > 0;
+                const showXL = order.sizeXL > 0 || (order.sizeXL_short || 0) > 0 || (order.sizeXL_long || 0) > 0;
+                const showXXL = order.sizeXXL > 0 || (order.sizeXXL_short || 0) > 0 || (order.sizeXXL_long || 0) > 0;
+
+                const sShort = showS ? (order.sizeS_short ?? order.sizeS ?? 0) : 0;
+                const mShort = showM ? (order.sizeM_short ?? order.sizeM ?? 0) : 0;
+                const lShort = showL ? (order.sizeL_short ?? order.sizeL ?? 0) : 0;
+                const xlShort = showXL ? (order.sizeXL_short ?? order.sizeXL ?? 0) : 0;
+                const xxlShort = showXXL ? (order.sizeXXL_short ?? order.sizeXXL ?? 0) : 0;
+
+                const sLong = showS ? (order.sizeS_long ?? 0) : 0;
+                const mLong = showM ? (order.sizeM_long ?? 0) : 0;
+                const lLong = showL ? (order.sizeL_long ?? 0) : 0;
+                const xlLong = showXL ? (order.sizeXL_long ?? 0) : 0;
+                const xxlLong = showXXL ? (order.sizeXXL_long ?? 0) : 0;
+
+                const customShortTotal = activeCustomSizes.reduce((sum, cs) => sum + (Number(cs.short) || 0), 0);
+                const customLongTotal = activeCustomSizes.reduce((sum, cs) => sum + (Number(cs.long) || 0), 0);
+
+                const calculatedPendekTotal = sShort + mShort + lShort + xlShort + xxlShort + customShortTotal;
+                const calculatedPanjangTotal = sLong + mLong + lLong + xlLong + xxlLong + customLongTotal;
+
+                const overallTotalQty = Math.max(calculatedPendekTotal + calculatedPanjangTotal, Number(order.quantity) || 0);
+
+                const computedSubtotal = (order.totalPrice != null && order.totalPrice > 0)
+                  ? (order.totalPrice - (order.shippingCost || 0) + (order.discount || 0))
+                  : (overallTotalQty * (order.unitPrice || 0));
+
+                return (
+                  <div className="flex justify-between">
+                    <span>Subtotal ({overallTotalQty} pcs)</span>
+                    <span className="font-mono text-slate-800">{formatRupiah(computedSubtotal)}</span>
+                  </div>
+                );
+              })()}
               {order.discount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-medium">
                   <span>Diskon Potongan</span>
