@@ -269,27 +269,36 @@ function getSeedData(): ConvectionOrder[] {
   ];
 }
 
-// Generate unique invoice number
+// Generate unique, continuous invoice number
 function generateInvoiceNumber(orders: ConvectionOrder[]): string {
+  const settings = readSettings();
   const date = new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const prefix = `INV/${year}${month}/`;
 
-  // Find highest suffix for this year/month
+  // Find highest numeric suffix among existing orders
   let maxNum = 0;
   orders.forEach((o) => {
-    if (o.invoiceNumber && o.invoiceNumber.startsWith(prefix)) {
-      const parts = o.invoiceNumber.split("/");
-      const numPart = parseInt(parts[2], 10);
-      if (!isNaN(numPart) && numPart > maxNum) {
-        maxNum = numPart;
+    if (o.invoiceNumber) {
+      const match = o.invoiceNumber.match(/\d+$/);
+      if (match) {
+        const val = parseInt(match[0], 10);
+        if (!isNaN(val) && val > maxNum) {
+          maxNum = val;
+        }
       }
     }
   });
 
-  const nextNum = String(maxNum + 1).padStart(4, "0");
-  return `${prefix}${nextNum}`;
+  const storedSeq = settings.lastInvoiceSequence || 0;
+  const nextSeq = Math.max(maxNum, storedSeq) + 1;
+
+  // Persist updated lastInvoiceSequence to settings
+  settings.lastInvoiceSequence = nextSeq;
+  writeSettings(settings);
+
+  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
 }
 
 // API Routes
@@ -448,6 +457,44 @@ app.get("/api/orders/*", (req, res) => {
   res.json(order);
 });
 
+// Resequence all invoice numbers chronologically
+app.post("/api/orders/resequence", (req, res) => {
+  try {
+    const orders = readDB();
+    if (orders.length === 0) {
+      return res.json({ message: "Tidak ada order untuk di-urutkan.", orders: [], lastInvoiceSequence: 0 });
+    }
+
+    orders.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+
+    orders.forEach((o, index) => {
+      const seq = index + 1;
+      const date = o.createdAt ? new Date(o.createdAt) : new Date();
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      o.invoiceNumber = `INV/${year}${month}/${String(seq).padStart(4, "0")}`;
+    });
+
+    const settings = readSettings();
+    settings.lastInvoiceSequence = orders.length;
+    writeSettings(settings);
+    writeDB(orders);
+
+    res.json({
+      message: "Berhasil mengurutkan ulang semua nomor invoice.",
+      orders,
+      lastInvoiceSequence: orders.length
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Gagal mengurutkan nomor invoice." });
+  }
+});
+
 // Create new order
 app.post("/api/orders", (req, res) => {
   try {
@@ -455,7 +502,23 @@ app.post("/api/orders", (req, res) => {
     const newOrderData = req.body;
 
     const id = "ord-" + Math.random().toString(36).substr(2, 9);
-    const invoiceNumber = generateInvoiceNumber(orders);
+    let invoiceNumber = newOrderData.invoiceNumber;
+    if (!invoiceNumber) {
+      invoiceNumber = generateInvoiceNumber(orders);
+    } else {
+      const match = invoiceNumber.match(/\d+$/);
+      if (match) {
+        const val = parseInt(match[0], 10);
+        if (!isNaN(val)) {
+          const settings = readSettings();
+          const currentSeq = settings.lastInvoiceSequence || 0;
+          if (val > currentSeq) {
+            settings.lastInvoiceSequence = val;
+            writeSettings(settings);
+          }
+        }
+      }
+    }
     
     // Server-side calculation to ensure precision
     const sizeS = Number(newOrderData.sizeS) || 0;

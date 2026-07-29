@@ -4,7 +4,7 @@ import {
   TrendingUp, User, Phone, ExternalLink, Copy, Trash2, Edit3, 
   AlertTriangle, Activity, FileText, Check, MapPin, CreditCard, Scissors, Sparkles, SlidersHorizontal, X, Settings, Upload,
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
-  Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key
+  Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered
 } from 'lucide-react';
 import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
@@ -627,6 +627,112 @@ export default function CashierDashboard() {
     }
   };
 
+  // Function to resequence all existing invoice numbers chronologically
+  const handleResequenceAllOrders = async (silent = false) => {
+    if (!orders || orders.length === 0) {
+      if (!silent) alert('Belum ada data transaksi untuk diurutkan.');
+      return;
+    }
+
+    if (!silent) {
+      const confirmMsg = `Apakah Anda yakin ingin merapikan & mengurutkan ulang semua ${orders.length} nomor invoice transaksi secara berurutan?\n\nSemua transaksi akan diberi nomor invoice berurutan (0001, 0002, 0003...) berdasarkan tanggal pembuatan tertua.`;
+      if (!confirm(confirmMsg)) return;
+    }
+
+    try {
+      // Sort chronologically (oldest first)
+      const sorted = [...orders].sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (timeA !== timeB) return timeA - timeB;
+        return (a.id || '').localeCompare(b.id || '');
+      });
+
+      const resequencedOrders: ConvectionOrder[] = [];
+
+      for (let i = 0; i < sorted.length; i++) {
+        const order = sorted[i];
+        const seq = i + 1;
+        const rawDate = order.createdAt ? new Date(order.createdAt) : new Date();
+        const dateObj = isNaN(rawDate.getTime()) ? new Date() : rawDate;
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const newInvNum = `INV/${year}${month}/${String(seq).padStart(4, '0')}`;
+
+        const updatedOrder: ConvectionOrder = {
+          ...order,
+          invoiceNumber: newInvNum
+        };
+
+        resequencedOrders.push(updatedOrder);
+
+        // Save to Firestore if changed
+        if (order.invoiceNumber !== newInvNum) {
+          await saveOrderToFirestore(updatedOrder).catch(console.error);
+          fetch(`/api/orders/${order.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invoiceNumber: newInvNum })
+          }).catch(console.error);
+        }
+      }
+
+      // Update settings
+      const nextLastSeq = sorted.length;
+      try {
+        localStorage.setItem('last_invoice_sequence', String(nextLastSeq));
+      } catch {}
+
+      if (invoiceSettings) {
+        const updatedSettings: InvoiceSettings = {
+          ...invoiceSettings,
+          lastInvoiceSequence: nextLastSeq
+        };
+        setInvoiceSettings(updatedSettings);
+        await saveSettingsToFirestore(updatedSettings).catch(console.error);
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedSettings)
+        }).catch(console.error);
+      }
+
+      fetch('/api/orders/resequence', { method: 'POST' }).catch(console.error);
+
+      setOrders(resequencedOrders);
+
+      if (!silent) {
+        alert(`Berhasil merapikan & mengurutkan ulang ${sorted.length} nomor invoice secara berurutan! (INV/.../0001 s/d INV/.../${String(nextLastSeq).padStart(4, '0')})`);
+      }
+    } catch (err: any) {
+      if (!silent) alert('Gagal mengurutkan nomor invoice: ' + (err.message || 'Error'));
+    }
+  };
+
+  // Auto check for duplicate or non-sequential invoice numbers
+  useEffect(() => {
+    if (!orders || orders.length === 0) return;
+
+    const seenInvoices = new Set<string>();
+    let hasDuplicatesOrUnordered = false;
+
+    const seqs = orders.map(o => {
+      if (!o.invoiceNumber || seenInvoices.has(o.invoiceNumber)) {
+        hasDuplicatesOrUnordered = true;
+      } else {
+        seenInvoices.add(o.invoiceNumber);
+      }
+      const match = o.invoiceNumber?.match(/\d+$/);
+      return match ? parseInt(match[0], 10) : 0;
+    }).sort((a, b) => a - b);
+
+    const isSequential = seqs.every((val, idx) => val === idx + 1);
+
+    if (hasDuplicatesOrUnordered || !isSequential) {
+      handleResequenceAllOrders(true);
+    }
+  }, [orders.length]);
+
   // Handle order deletion
   const handleDeleteOrder = async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus order ini secara permanen?')) return;
@@ -766,7 +872,44 @@ export default function CashierDashboard() {
     try {
       const isEdit = !!editingOrder;
       const orderId = isEdit ? editingOrder.id : `ord-${Date.now()}`;
-      const invNum = isEdit ? editingOrder.invoiceNumber : `INV/${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}/${String(orders.length + 1).padStart(4, '0')}`;
+      
+      let invNum = isEdit ? editingOrder.invoiceNumber : '';
+      if (!isEdit) {
+        let highestInOrders = 0;
+        orders.forEach(o => {
+          if (o.invoiceNumber) {
+            const match = o.invoiceNumber.match(/\d+$/);
+            if (match) {
+              const val = parseInt(match[0], 10);
+              if (!isNaN(val) && val > highestInOrders) {
+                highestInOrders = val;
+              }
+            }
+          }
+        });
+
+        const storedSeq = invoiceSettings?.lastInvoiceSequence || 0;
+        const localSeq = parseInt(localStorage.getItem('last_invoice_sequence') || '0', 10) || 0;
+
+        const nextSeq = Math.max(highestInOrders, storedSeq, localSeq) + 1;
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        invNum = `INV/${year}${month}/${String(nextSeq).padStart(4, '0')}`;
+
+        try {
+          localStorage.setItem('last_invoice_sequence', String(nextSeq));
+        } catch {}
+
+        if (invoiceSettings) {
+          const updatedSettings = {
+            ...invoiceSettings,
+            lastInvoiceSequence: nextSeq
+          };
+          setInvoiceSettings(updatedSettings);
+          saveSettingsToFirestore(updatedSettings).catch(() => {});
+        }
+      }
 
       const generatedCustomStr = (formData.customSizes || [])
         .filter(item => (item.name && item.name.trim()) || (item.short || 0) > 0 || (item.long || 0) > 0)
@@ -993,18 +1136,35 @@ export default function CashierDashboard() {
     return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(text)}`;
   };
 
-  // Filter orders
-  const filteredOrders = orders.filter((o) => {
-    const matchesSearch = 
-      o.customerName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      o.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.productType.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesProduction = filterProduction === 'ALL' || o.productionStatus === filterProduction;
-    const matchesPayment = filterPayment === 'ALL' || o.paymentStatus === filterPayment;
+  const getOrderSeqNum = (o: ConvectionOrder): number => {
+    if (o.invoiceNumber) {
+      const match = o.invoiceNumber.match(/\d+$/);
+      if (match) {
+        const val = parseInt(match[0], 10);
+        if (!isNaN(val)) return val;
+      }
+    }
+    if (o.createdAt) {
+      const t = new Date(o.createdAt).getTime();
+      if (!isNaN(t)) return t;
+    }
+    return 0;
+  };
 
-    return matchesSearch && matchesProduction && matchesPayment;
-  });
+  // Filter & sort orders (newest on top, oldest/0001 at the bottom)
+  const filteredOrders = orders
+    .filter((o) => {
+      const matchesSearch = 
+        o.customerName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        o.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        o.productType.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesProduction = filterProduction === 'ALL' || o.productionStatus === filterProduction;
+      const matchesPayment = filterPayment === 'ALL' || o.paymentStatus === filterPayment;
+
+      return matchesSearch && matchesProduction && matchesPayment;
+    })
+    .sort((a, b) => getOrderSeqNum(b) - getOrderSeqNum(a));
 
   // Render PIN Lock Screen if system is locked
   if (!isUnlocked) {
@@ -1443,6 +1603,17 @@ export default function CashierDashboard() {
               <option value="DP_DIBAYAR">DP Dibayar</option>
               <option value="LUNAS">Lunas</option>
             </select>
+
+            {/* Resequence Invoices Button */}
+            <button
+              onClick={() => handleResequenceAllOrders(false)}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer border border-blue-200 shadow-sm"
+              title="Urutkan & Rapikan Ulang Semua Nomor Invoice (0001, 0002, 0003...)"
+              id="btn-resequence-invoices"
+            >
+              <ListOrdered size={15} className="text-blue-600" />
+              <span>Urutkan No. Invoice</span>
+            </button>
           </div>
         </div>
 
@@ -2714,7 +2885,7 @@ export default function CashierDashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">No. WA / Telepon*</label>
                     <input 
@@ -2734,6 +2905,35 @@ export default function CashierDashboard() {
                       className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
                     />
                   </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">Urutan Invoice Terakhir</label>
+                    <input 
+                      type="number"
+                      min={0}
+                      value={settingsDraft.lastInvoiceSequence ?? 3}
+                      onChange={(e) => setSettingsDraft({ ...settingsDraft, lastInvoiceSequence: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 font-mono"
+                      placeholder="e.g. 3"
+                    />
+                  </div>
+                </div>
+
+                {/* Banner & Tombol Urutkan Ulang Invoice */}
+                <div className="bg-blue-50/80 p-3.5 rounded-2xl border border-blue-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-extrabold text-blue-950 block">Rapikan & Urutkan Ulang Semua No. Invoice Transaksi</span>
+                    <p className="text-[11px] text-blue-800/80 leading-snug">
+                      Mengubah semua nomor invoice transaksi yang ada menjadi berurutan tanpa jeda atau ganda (0001, 0002, 0003...) berdasarkan tanggal pembuatan tertua.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleResequenceAllOrders(false)}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all shrink-0 flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                  >
+                    <ListOrdered size={14} />
+                    <span>Urutkan Ulang Sekarang</span>
+                  </button>
                 </div>
 
                 <div>

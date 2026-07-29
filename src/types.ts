@@ -109,4 +109,5 @@ export interface InvoiceSettings {
   bankAccounts: BankAccount[];
   additionalNotes?: string;
   adminPin?: string;
+  lastInvoiceSequence?: number;
 }
