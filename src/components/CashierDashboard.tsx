@@ -1959,6 +1959,7 @@ export default function CashierDashboard() {
                     >
                       <option value="Kaos Sablon">Kaos Sablon</option>
                       <option value="Kaos Polos">Kaos Polos</option>
+                      <option value="Sablon Saja">Sablon Saja</option>
                       <option value="Polo Shirt">Polo Shirt</option>
                       <option value="Kemeja PDL/PDH">Kemeja PDL/PDH</option>
                       <option value="Hoodie Jumper">Hoodie Jumper</option>
