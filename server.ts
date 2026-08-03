@@ -13,6 +13,43 @@ const CUSTOMERS_FILE = path.join(process.cwd(), "customers_db.json");
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+// Helper function to send invoice payment webhook to Financial Dashboard
+async function sendWebhookToFinance(payload: {
+  date: string;
+  division: string;
+  type: string;
+  amount: number;
+  description: string;
+  invoiceNumber: string;
+  paymentType: 'DP' | 'Pelunasan';
+}) {
+  try {
+    const webhookUrl = "https://ais-dev-uuxmczdtyyiw62zeoagtzh-1058766488006.asia-southeast1.run.app/api/webhooks/invoice-payment";
+    console.log("[SERVER WEBHOOK] Sending invoice payment payload:", JSON.stringify(payload));
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    console.log("[SERVER WEBHOOK] Response status:", response.status);
+    return response.ok;
+  } catch (err) {
+    console.error("[SERVER WEBHOOK] Error sending webhook:", err);
+    return false;
+  }
+}
+
+// Endpoint for client-side webhook proxy to prevent browser CORS issues
+app.post("/api/webhook-proxy", async (req, res) => {
+  try {
+    const payload = req.body;
+    const success = await sendWebhookToFinance(payload);
+    res.json({ status: success ? "ok" : "warning" });
+  } catch (err: any) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
 // Helper function to read customers
 function readCustomers(): Customer[] {
   try {
@@ -594,6 +631,25 @@ app.post("/api/orders", (req, res) => {
 
     orders.push(newOrder);
     writeDB(orders);
+
+    // Trigger finance webhook for new order DP / Full payment
+    if (dpAmount > 0) {
+      const isLunas = paymentStatus === "LUNAS";
+      const pType: "DP" | "Pelunasan" = isLunas ? "Pelunasan" : "DP";
+      const cleanInvNum = (invoiceNumber || '').replace(/^#/, '');
+      const cleanCustName = (newOrderData.customerName || 'Pelanggan').trim();
+
+      sendWebhookToFinance({
+        date: new Date().toISOString().split("T")[0],
+        division: "Sablon",
+        type: "Pemasukan",
+        amount: dpAmount,
+        description: `${pType} Invoice #${cleanInvNum} - ${cleanCustName}`,
+        invoiceNumber: cleanInvNum,
+        paymentType: pType
+      });
+    }
+
     res.status(201).json(newOrder);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -717,6 +773,23 @@ app.post("/api/orders/:id/payments", (req, res) => {
 
   orders[idx] = order;
   writeDB(orders);
+
+  // Trigger finance webhook for invoice payment
+  const isPelunasan = (type || "").toUpperCase() === "PELUNASAN" || (type || "").toUpperCase() === "FULL" || order.remainingBalance <= 0;
+  const pType: "DP" | "Pelunasan" = isPelunasan ? "Pelunasan" : "DP";
+  const cleanInvNum = (order.invoiceNumber || order.id || '').replace(/^#/, '');
+  const cleanCustName = (order.customerName || 'Pelanggan').trim();
+
+  sendWebhookToFinance({
+    date: new Date().toISOString().split("T")[0],
+    division: "Sablon",
+    type: "Pemasukan",
+    amount: paymentAmt,
+    description: `${pType} Invoice #${cleanInvNum} - ${cleanCustName}`,
+    invoiceNumber: cleanInvNum,
+    paymentType: pType
+  });
+
   res.json(order);
 });
 

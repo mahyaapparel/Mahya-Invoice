@@ -6,8 +6,9 @@ import {
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
   Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered
 } from 'lucide-react';
-import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer } from '../types';
+import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
+import { sendInvoicePaymentWebhook } from '../utils/webhook';
 import InvoiceDetailModal from './InvoiceDetailModal';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
@@ -916,7 +917,60 @@ export default function CashierDashboard() {
         .map(item => `${item.name || 'Custom'}: ${(item.short || 0) + (item.long || 0)} pcs (Pendek: ${item.short || 0}, Panjang: ${item.long || 0})`)
         .join(', ');
 
-      const totalPaidSoFar = isEdit ? ((editingOrder.totalPrice || 0) - (editingOrder.remainingBalance || 0)) : (Number(formData.dpAmount) || 0);
+      const newDpAmount = Number(formData.dpAmount) || 0;
+      let finalPaymentHistory: PaymentRecord[] = [];
+
+      if (isEdit) {
+        const existingHistory = editingOrder.paymentHistory || [];
+        const dpIndex = existingHistory.findIndex(p => p.type === 'DP');
+        
+        if (dpIndex >= 0) {
+          finalPaymentHistory = existingHistory.map((p, idx) => {
+            if (idx === dpIndex) {
+              return {
+                ...p,
+                amount: newDpAmount,
+                method: formData.paymentMethod || p.method || 'CASH',
+                reference: formData.paymentReference || p.reference || 'Kasir Tunai'
+              };
+            }
+            return p;
+          });
+          if (newDpAmount <= 0) {
+            finalPaymentHistory = finalPaymentHistory.filter((_, idx) => idx !== dpIndex);
+          }
+        } else if (newDpAmount > 0) {
+          finalPaymentHistory = [
+            {
+              id: `pay-${Date.now()}`,
+              amount: newDpAmount,
+              type: 'DP',
+              method: formData.paymentMethod || 'CASH',
+              reference: formData.paymentReference || 'Kasir Tunai',
+              timestamp: new Date().toISOString(),
+              status: 'SUCCESS'
+            },
+            ...existingHistory
+          ];
+        } else {
+          finalPaymentHistory = [...existingHistory];
+        }
+      } else {
+        finalPaymentHistory = newDpAmount > 0 ? [{
+          id: `pay-${Date.now()}`,
+          amount: newDpAmount,
+          type: 'DP',
+          method: formData.paymentMethod || 'CASH',
+          reference: formData.paymentReference || 'Kasir Tunai',
+          timestamp: new Date().toISOString(),
+          status: 'SUCCESS'
+        }] : [];
+      }
+
+      const totalPaidSoFar = finalPaymentHistory
+        .filter(p => p.status === 'SUCCESS' || !p.status)
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
       const newRemaining = Math.max(0, liveTotal - totalPaidSoFar);
       const newPayStatus: PaymentStatus = newRemaining <= 0 ? 'LUNAS' : totalPaidSoFar > 0 ? 'DP_DIBAYAR' : 'BELUM_BAYAR';
 
@@ -960,25 +1014,28 @@ export default function CashierDashboard() {
         shippingCost: Number(formData.shippingCost || 0),
         quantity: liveQty,
         totalPrice: liveTotal,
-        dpAmount: isEdit ? editingOrder.dpAmount : (Number(formData.dpAmount) || 0),
+        dpAmount: newDpAmount,
         remainingBalance: newRemaining,
-        paymentStatus: isEdit ? editingOrder.paymentStatus : newPayStatus,
+        paymentStatus: newPayStatus,
         productionStatus: isEdit ? editingOrder.productionStatus : 'ANTREAN',
         notes: formData.notes || '',
         createdAt: isEdit ? editingOrder.createdAt : new Date().toISOString(),
         deadline: formData.deadline || '',
-        paymentHistory: isEdit ? (editingOrder.paymentHistory || []) : ((Number(formData.dpAmount) || 0) > 0 ? [{
-          id: `pay-${Date.now()}`,
-          amount: Number(formData.dpAmount),
-          type: 'DP',
-          method: formData.paymentMethod || 'CASH',
-          reference: formData.paymentReference || 'Kasir Tunai',
-          timestamp: new Date().toISOString(),
-          status: 'SUCCESS'
-        }] : [])
+        paymentHistory: finalPaymentHistory
       };
 
       await saveOrderToFirestore(fullOrderObj);
+
+      if ((!isEdit && newDpAmount > 0) || (isEdit && newDpAmount !== (editingOrder.dpAmount || 0) && newDpAmount > 0)) {
+        const isLunas = newDpAmount >= liveTotal;
+        sendInvoicePaymentWebhook({
+          amount: newDpAmount,
+          invoiceNumber: invNum,
+          customerName: formData.customerName,
+          paymentType: isLunas ? 'Pelunasan' : 'DP',
+          isFullOrSettled: isLunas
+        }).catch(() => {});
+      }
 
       const url = isEdit ? `/api/orders/${editingOrder.id}` : '/api/orders';
       const method = isEdit ? 'PUT' : 'POST';
@@ -989,6 +1046,10 @@ export default function CashierDashboard() {
           ...formData,
           id: orderId,
           invoiceNumber: invNum,
+          dpAmount: newDpAmount,
+          paymentHistory: finalPaymentHistory,
+          remainingBalance: newRemaining,
+          paymentStatus: newPayStatus,
           sizeCustom: generatedCustomStr || formData.sizeCustom || '',
           sizeS: sizeS_total,
           sizeM: sizeM_total,
@@ -1065,6 +1126,14 @@ export default function CashierDashboard() {
       };
 
       await saveOrderToFirestore(updatedOrderObj);
+
+      sendInvoicePaymentWebhook({
+        amount: quickPayAmount,
+        invoiceNumber: quickPayOrder.invoiceNumber || quickPayOrder.id,
+        customerName: quickPayOrder.customerName,
+        paymentType: isPelunasan ? 'Pelunasan' : 'DP',
+        isFullOrSettled: isPelunasan
+      }).catch(() => {});
 
       fetch(`/api/orders/${quickPayOrder.id}/payments`, {
         method: 'POST',

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { ConvectionOrder, PaymentRecord, InvoiceSettings } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails } from '../utils/format';
+import { sendInvoicePaymentWebhook } from '../utils/webhook';
 import { exportElementToPdf } from '../utils/pdfSanitizer';
 import { fetchOrderFromFirestore, fetchSettingsFromFirestore } from '../services/firestoreService';
 import mahyaLogo from '../assets/images/mahya_logo_1784646837491.jpg';
@@ -309,6 +310,16 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
       const updatedOrder = await res.json();
       setOrder(updatedOrder);
       setPaymentDone(true);
+
+      const isPelunasan = paymentOption === 'PELUNASAN' || paymentOption === 'FULL' || amountToPay >= order.remainingBalance;
+      sendInvoicePaymentWebhook({
+        amount: amountToPay,
+        invoiceNumber: order.invoiceNumber || order.id,
+        customerName: order.customerName,
+        paymentType: isPelunasan ? 'Pelunasan' : 'DP',
+        isFullOrSettled: isPelunasan
+      }).catch(() => {});
+
       onPaymentSuccess();
     } catch (err) {
       alert('Gagal mencatat pembayaran, silakan coba lagi.');
