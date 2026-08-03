@@ -23,20 +23,33 @@ async function sendWebhookToFinance(payload: {
   invoiceNumber: string;
   paymentType: 'DP' | 'Pelunasan';
 }) {
-  try {
-    const webhookUrl = "https://ais-dev-uuxmczdtyyiw62zeoagtzh-1058766488006.asia-southeast1.run.app/api/webhooks/invoice-payment";
-    console.log("[SERVER WEBHOOK] Sending invoice payment payload:", JSON.stringify(payload));
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    console.log("[SERVER WEBHOOK] Response status:", response.status);
-    return response.ok;
-  } catch (err) {
-    console.error("[SERVER WEBHOOK] Error sending webhook:", err);
-    return false;
+  const endpoints = [
+    "https://finance.mahyakaryafaintech.com/api/webhooks/invoice-payment",
+    "https://ais-dev-uuxmczdtyyiw62zeoagtzh-1058766488006.asia-southeast1.run.app/api/webhooks/invoice-payment"
+  ];
+
+  let successCount = 0;
+  console.log("[SERVER WEBHOOK] Sending invoice payment payload:", JSON.stringify(payload));
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (response.ok) {
+        successCount++;
+        console.log(`[SERVER WEBHOOK] Successfully sent to ${endpoint}`);
+      } else {
+        console.warn(`[SERVER WEBHOOK] Endpoint ${endpoint} returned status ${response.status}`);
+      }
+    } catch (err) {
+      console.error(`[SERVER WEBHOOK] Error sending to ${endpoint}:`, err);
+    }
   }
+
+  return successCount > 0;
 }
 
 // Endpoint for client-side webhook proxy to prevent browser CORS issues
@@ -782,7 +795,7 @@ app.post("/api/orders/:id/payments", (req, res) => {
 
   sendWebhookToFinance({
     date: new Date().toISOString().split("T")[0],
-    division: "Sablon",
+    division: "Konveksi",
     type: "Pemasukan",
     amount: paymentAmt,
     description: `${pType} Invoice #${cleanInvNum} - ${cleanCustName}`,

@@ -9,7 +9,7 @@ import {
   query,
   orderBy
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, financeDb } from '../lib/firebase';
 import { ConvectionOrder, Customer, InvoiceSettings } from '../types';
 
 const ORDERS_COLLECTION = 'orders';
@@ -216,12 +216,23 @@ export interface FinanceTransaction {
 
 export async function saveTransactionToFirestore(tx: FinanceTransaction) {
   try {
-    const docRef = doc(db, TRANSACTIONS_COLLECTION, tx.id);
-    await setDoc(docRef, {
+    const docData = {
       ...tx,
       createdAt: tx.createdAt || new Date().toISOString()
-    }, { merge: true });
-    console.log("Transaction synced to Firestore 'transactions' collection:", tx.id);
+    };
+
+    // 1. Save to local Kasir Firestore DB
+    const docRefLocal = doc(db, TRANSACTIONS_COLLECTION, tx.id);
+    await setDoc(docRefLocal, docData, { merge: true });
+
+    // 2. Save directly to Finance Dashboard DB (finance.mahyakaryafaintech.com)
+    try {
+      const docRefFinance = doc(financeDb, TRANSACTIONS_COLLECTION, tx.id);
+      await setDoc(docRefFinance, docData, { merge: true });
+      console.log("Transaction successfully synced to Finance Dashboard DB:", tx.id);
+    } catch (finErr) {
+      console.warn("Direct Finance DB write notice:", finErr);
+    }
   } catch (err) {
     console.error("Error saving transaction to Firestore:", err);
   }
