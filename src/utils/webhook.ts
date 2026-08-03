@@ -40,7 +40,7 @@ export const sendInvoicePaymentWebhook = async (params: {
 
   const payload: InvoicePaymentWebhookPayload = {
     date: formattedDate,
-    division: 'Sablon',
+    division: 'Konveksi',
     type: 'Pemasukan',
     amount: params.amount,
     description: `${payType} Invoice #${cleanInvNum} - ${cleanCustomerName}`,
@@ -54,7 +54,7 @@ export const sendInvoicePaymentWebhook = async (params: {
     await saveTransactionToFirestore({
       id: txId,
       date: formattedDate,
-      division: 'Sablon',
+      division: 'Konveksi',
       type: 'Pemasukan',
       amount: params.amount,
       description: payload.description,

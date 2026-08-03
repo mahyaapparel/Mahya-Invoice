@@ -243,7 +243,7 @@ export async function syncOrderTransactionsToFirestore(order: ConvectionOrder) {
           await saveTransactionToFirestore({
             id: pay.id || `tx-${order.id}-${payType.toLowerCase()}`,
             date: formattedDate,
-            division: 'Sablon',
+            division: 'Konveksi',
             type: 'Pemasukan',
             amount: pay.amount,
             description: `${payType} Invoice #${cleanInvNum} - ${custName}`,
@@ -261,7 +261,7 @@ export async function syncOrderTransactionsToFirestore(order: ConvectionOrder) {
       await saveTransactionToFirestore({
         id: `tx-${order.id}-${payType.toLowerCase()}`,
         date: formattedDate,
-        division: 'Sablon',
+        division: 'Konveksi',
         type: 'Pemasukan',
         amount: order.dpAmount,
         description: `${payType} Invoice #${cleanInvNum} - ${custName}`,

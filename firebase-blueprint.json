@@ -57,6 +57,41 @@
         "additionalNotes": { "type": "string" }
       },
       "required": ["businessName"]
+    },
+    "transactions": {
+      "title": "Finance Transactions",
+      "description": "Financial income and expense records synced to Financial Dashboard",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "division": { "type": "string" },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "paymentType": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "date", "division", "type", "amount", "description"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/orders" },
+      "description": "Convection orders collection"
+    },
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/customers" },
+      "description": "Customers collection"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/settings" },
+      "description": "Kasir settings collection"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/transactions" },
+      "description": "Finance transactions collection"
     }
   }
 }
