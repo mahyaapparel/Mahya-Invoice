@@ -6,7 +6,7 @@ import {
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
   Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered
 } from 'lucide-react';
-import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord } from '../types';
+import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord, FinanceTransaction } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
 import { sendInvoicePaymentWebhook } from '../utils/webhook';
 import InvoiceDetailModal from './InvoiceDetailModal';
@@ -21,6 +21,7 @@ import {
   saveCustomerToFirestore,
   deleteCustomerFromFirestore,
   saveSettingsToFirestore,
+  saveTransactionToFirestore,
   seedInitialFirestoreData
 } from '../services/firestoreService';
 
@@ -137,6 +138,93 @@ export default function CashierDashboard() {
   const [quickPayAmount, setQuickPayAmount] = useState<number>(0);
   const [quickPayMethod, setQuickPayMethod] = useState<'BANK_TRANSFER' | 'QRIS' | 'E_WALLET' | 'CASH'>('CASH');
   const [quickPayRef, setQuickPayRef] = useState<string>('Kasir Tunai');
+
+  // Catat Transaksi state & handlers
+  const [showTransactionModal, setShowTransactionModal] = useState<boolean>(false);
+  const [txDivision, setTxDivision] = useState<'Konveksi' | 'Sablon' | 'Asesoris'>('Konveksi');
+  const [txType, setTxType] = useState<'Pemasukan' | 'Pengeluaran'>('Pemasukan');
+  const [txAmount, setTxAmount] = useState<number>(0);
+  const [txDescription, setTxDescription] = useState<string>('');
+  const [txInvoiceNumber, setTxInvoiceNumber] = useState<string>('');
+  const [txPaymentType, setTxPaymentType] = useState<'DP' | 'Pelunasan' | 'Lainnya'>('DP');
+  const [txDate, setTxDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [isSubmittingTx, setIsSubmittingTx] = useState<boolean>(false);
+  const [txSuccessMessage, setTxSuccessMessage] = useState<string | null>(null);
+
+  const handleOpenTransactionModal = (order?: ConvectionOrder, defaultDivision?: 'Konveksi' | 'Sablon' | 'Asesoris') => {
+    setTxSuccessMessage(null);
+    setTxDate(new Date().toISOString().split('T')[0]);
+    if (order) {
+      setTxInvoiceNumber(order.invoiceNumber);
+      const isSablon = order.sablonBordir?.toLowerCase().includes('sablon');
+      setTxDivision(defaultDivision || (isSablon ? 'Sablon' : 'Konveksi'));
+      const remaining = order.remainingBalance;
+      setTxAmount(remaining > 0 ? remaining : 0);
+      setTxType('Pemasukan');
+      setTxPaymentType(order.remainingBalance > 0 && order.dpAmount > 0 ? 'Pelunasan' : 'DP');
+      setTxDescription(`Pemasukan ${order.customerName} - ${order.productType}`);
+    } else {
+      setTxInvoiceNumber('');
+      setTxDivision(defaultDivision || 'Konveksi');
+      setTxAmount(0);
+      setTxType('Pemasukan');
+      setTxPaymentType('DP');
+      setTxDescription('');
+    }
+    setShowTransactionModal(true);
+  };
+
+  const handleSaveTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!txAmount || txAmount <= 0) {
+      alert('Masukkan nominal transaksi yang valid!');
+      return;
+    }
+    if (!txDescription.trim()) {
+      alert('Masukkan keterangan transaksi!');
+      return;
+    }
+
+    setIsSubmittingTx(true);
+    setTxSuccessMessage(null);
+
+    const newTx: FinanceTransaction = {
+      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      date: txDate || new Date().toISOString().split('T')[0],
+      division: txDivision,
+      type: txType,
+      amount: Number(txAmount),
+      description: txDescription.trim(),
+      invoiceNumber: txInvoiceNumber ? txInvoiceNumber.trim() : undefined,
+      paymentType: txPaymentType === 'Lainnya' ? undefined : txPaymentType,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      await saveTransactionToFirestore(newTx);
+
+      await sendInvoicePaymentWebhook({
+        date: newTx.date,
+        division: newTx.division,
+        type: newTx.type,
+        amount: newTx.amount,
+        description: newTx.description,
+        invoiceNumber: newTx.invoiceNumber || '-',
+        paymentType: newTx.paymentType || 'DP'
+      });
+
+      setTxSuccessMessage(`Berhasil mencatat transaksi ${newTx.type} Rp ${formatRupiah(newTx.amount)} ke Divisi ${newTx.division}! Disinkronkan ke Finance Dashboard.`);
+      setTimeout(() => {
+        setShowTransactionModal(false);
+        setTxSuccessMessage(null);
+      }, 1800);
+    } catch (err) {
+      console.error("Gagal mencatat transaksi:", err);
+      alert("Terjadi kesalahan saat menyimpan transaksi.");
+    } finally {
+      setIsSubmittingTx(false);
+    }
+  };
 
   // Edit Order state
   const [editingOrder, setEditingOrder] = useState<ConvectionOrder | null>(null);
@@ -1026,10 +1114,14 @@ export default function CashierDashboard() {
 
       await saveOrderToFirestore(fullOrderObj);
 
-      if ((!isEdit && newDpAmount > 0) || (isEdit && newDpAmount !== (editingOrder.dpAmount || 0) && newDpAmount > 0)) {
+      const addedAmount = !isEdit
+        ? newDpAmount
+        : Math.max(0, newDpAmount - (editingOrder.dpAmount || 0));
+
+      if (addedAmount > 0) {
         const isLunas = newDpAmount >= liveTotal;
         sendInvoicePaymentWebhook({
-          amount: newDpAmount,
+          amount: addedAmount,
           invoiceNumber: invNum,
           customerName: formData.customerName,
           paymentType: isLunas ? 'Pelunasan' : 'DP',
@@ -1539,6 +1631,17 @@ export default function CashierDashboard() {
               <Lock size={18} className="text-slate-600" />
               <span>Kunci Kasir</span>
             </button>
+            {/* Tombol Catat Transaksi Header */}
+            <button
+              onClick={() => handleOpenTransactionModal()}
+              className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all active:scale-95 cursor-pointer"
+              id="btn-catat-transaksi-header"
+              title="Catat transaksi keuangan ke Divisi Konveksi, Sablon, atau Asesoris"
+            >
+              <DollarSign size={18} />
+              <span>Catat Transaksi</span>
+            </button>
+
             <button
               onClick={() => {
                 setEditingOrder(null);
@@ -1861,6 +1964,16 @@ export default function CashierDashboard() {
                               <CreditCard size={16} />
                             </button>
                           )}
+
+                          {/* Catat / Sync Transaksi Ke Divisi */}
+                          <button
+                            onClick={() => handleOpenTransactionModal(order)}
+                            title="Catat / Sync Transaksi ke Divisi (Konveksi, Sablon, Asesoris)"
+                            className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
+                            id={`btn-catat-tx-${order.id}`}
+                          >
+                            <DollarSign size={16} />
+                          </button>
 
                           {/* Delete */}
                           <button
@@ -3698,6 +3811,204 @@ export default function CashierDashboard() {
                 >
                   <Check size={14} />
                   Simpan Pelanggan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Catat Transaksi Financial */}
+      {showTransactionModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="bg-slate-900 px-6 py-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <DollarSign size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-white">Catat Transaksi Finance</h3>
+                  <p className="text-xs text-slate-400">Pilih divisi dan sync otomatis ke Aplikasi Finance</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTransactionModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form onSubmit={handleSaveTransaction} className="p-6 space-y-4">
+              {txSuccessMessage && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                  <span>{txSuccessMessage}</span>
+                </div>
+              )}
+
+              {/* Pilihan Divisi */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-2">
+                  Pilih Divisi Tujuan <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTxDivision('Konveksi')}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      txDivision === 'Konveksi'
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>🧵 Konveksi</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTxDivision('Sablon')}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      txDivision === 'Sablon'
+                        ? 'bg-purple-600 border-purple-600 text-white shadow-md'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>🎨 Sablon</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTxDivision('Asesoris')}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      txDivision === 'Asesoris'
+                        ? 'bg-amber-600 border-amber-600 text-white shadow-md'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>🏷️ Asesoris</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Jenis Transaksi & Pembayaran */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">Tipe Transaksi</label>
+                  <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setTxType('Pemasukan')}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        txType === 'Pemasukan'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Pemasukan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTxType('Pengeluaran')}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        txType === 'Pengeluaran'
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Pengeluaran
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">Jenis Pembayaran</label>
+                  <select
+                    value={txPaymentType}
+                    onChange={(e) => setTxPaymentType(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="DP">DP (Uang Muka)</option>
+                    <option value="Pelunasan">Pelunasan</option>
+                    <option value="Lainnya">Lainnya / Umum</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Nominal & Tanggal */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                    Nominal (Rp) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={txAmount || ''}
+                    onChange={(e) => setTxAmount(Number(e.target.value))}
+                    placeholder="Contoh: 500000"
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">Tanggal Transaksi</label>
+                  <input
+                    type="date"
+                    value={txDate}
+                    onChange={(e) => setTxDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* No. Invoice (Opsional) */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">No. Invoice (Opsional)</label>
+                <input
+                  type="text"
+                  value={txInvoiceNumber}
+                  onChange={(e) => setTxInvoiceNumber(e.target.value)}
+                  placeholder="Contoh: INV-2026-001"
+                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold font-mono text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
+                />
+              </div>
+
+              {/* Deskripsi / Keterangan */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  Keterangan / Detail Transaksi <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={txDescription}
+                  onChange={(e) => setTxDescription(e.target.value)}
+                  placeholder="Contoh: DP Kaos BEM UI 100pcs - Transfer BCA"
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white resize-none"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTransactionModal(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingTx}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Check size={16} />
+                  {isSubmittingTx ? 'Menyimpan & Syncing...' : 'Simpan & Sync Ke Finance'}
                 </button>
               </div>
             </form>

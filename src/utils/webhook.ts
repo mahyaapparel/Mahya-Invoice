@@ -23,10 +23,13 @@ export const normalizePaymentType = (type: string, isFullOrSettled?: boolean): '
 export const sendInvoicePaymentWebhook = async (params: {
   date?: string;
   amount: number;
-  invoiceNumber: string;
-  customerName: string;
-  paymentType: string;
+  invoiceNumber?: string;
+  customerName?: string;
+  paymentType?: string;
   isFullOrSettled?: boolean;
+  division?: string;
+  type?: string;
+  description?: string;
 }) => {
   if (!params.amount || params.amount <= 0) return;
 
@@ -36,14 +39,17 @@ export const sendInvoicePaymentWebhook = async (params: {
 
   const cleanInvNum = params.invoiceNumber ? params.invoiceNumber.replace(/^#/, '') : 'INV';
   const cleanCustomerName = params.customerName ? params.customerName.trim() : 'Pelanggan';
-  const payType = normalizePaymentType(params.paymentType, params.isFullOrSettled);
+  const payType = normalizePaymentType(params.paymentType || 'DP', params.isFullOrSettled);
+  const division = params.division || 'Konveksi';
+  const txType = params.type || 'Pemasukan';
+  const description = params.description || `${payType} Invoice #${cleanInvNum} - ${cleanCustomerName}`;
 
   const payload: InvoicePaymentWebhookPayload = {
     date: formattedDate,
-    division: 'Konveksi',
-    type: 'Pemasukan',
+    division,
+    type: txType,
     amount: params.amount,
-    description: `${payType} Invoice #${cleanInvNum} - ${cleanCustomerName}`,
+    description,
     invoiceNumber: cleanInvNum,
     paymentType: payType
   };
@@ -54,10 +60,10 @@ export const sendInvoicePaymentWebhook = async (params: {
     await saveTransactionToFirestore({
       id: txId,
       date: formattedDate,
-      division: 'Konveksi',
-      type: 'Pemasukan',
+      division,
+      type: txType as any,
       amount: params.amount,
-      description: payload.description,
+      description,
       invoiceNumber: cleanInvNum,
       paymentType: payType
     });

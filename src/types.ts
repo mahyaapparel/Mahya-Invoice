@@ -111,3 +111,15 @@ export interface InvoiceSettings {
   adminPin?: string;
   lastInvoiceSequence?: number;
 }
+
+export interface FinanceTransaction {
+  id: string;
+  date: string;
+  division: 'Konveksi' | 'Sablon' | 'Asesoris' | string;
+  type: 'Pemasukan' | 'Pengeluaran';
+  amount: number;
+  description: string;
+  invoiceNumber?: string;
+  paymentType?: 'DP' | 'Pelunasan' | 'Lainnya';
+  createdAt?: string;
+}

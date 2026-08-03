@@ -41,11 +41,6 @@ export async function saveOrderToFirestore(order: ConvectionOrder) {
       ...order,
       updatedAt: new Date().toISOString()
     }, { merge: true });
-
-    // Automatically sync transactions to Firestore 'transactions' collection for Financial Dashboard
-    syncOrderTransactionsToFirestore(order).catch(err => {
-      console.warn("Failed syncing transactions for order:", order.id, err);
-    });
   } catch (err) {
     console.error("Error saving order to Firestore:", err);
     throw err;
@@ -210,7 +205,7 @@ export interface FinanceTransaction {
   amount: number;
   description: string;
   invoiceNumber?: string;
-  paymentType?: 'DP' | 'Pelunasan';
+  paymentType?: 'DP' | 'Pelunasan' | 'Lainnya' | string;
   createdAt?: string;
 }
 
@@ -297,14 +292,7 @@ export async function seedInitialFirestoreData(
     if (ordersSnap.empty && defaultOrders.length > 0) {
       for (const ord of defaultOrders) {
         await setDoc(doc(db, ORDERS_COLLECTION, ord.id), ord);
-        await syncOrderTransactionsToFirestore(ord);
       }
-    } else {
-      // Ensure existing orders also sync their transactions
-      ordersSnap.forEach((docSnap) => {
-        const ord = docSnap.data() as ConvectionOrder;
-        syncOrderTransactionsToFirestore(ord).catch(() => {});
-      });
     }
 
     // 2. Check customers
