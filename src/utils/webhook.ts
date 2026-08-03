@@ -1,3 +1,5 @@
+import { saveTransactionToFirestore } from '../services/firestoreService';
+
 export interface InvoicePaymentWebhookPayload {
   date: string;
   division: string;
@@ -46,6 +48,24 @@ export const sendInvoicePaymentWebhook = async (params: {
     paymentType: payType
   };
 
+  // 1. Direct real-time save to Firestore 'transactions' collection
+  try {
+    const txId = `tx-${cleanInvNum.replace(/[^a-zA-Z0-9]/g, '-')}-${payType.toLowerCase()}-${Date.now()}`;
+    await saveTransactionToFirestore({
+      id: txId,
+      date: formattedDate,
+      division: 'Sablon',
+      type: 'Pemasukan',
+      amount: params.amount,
+      description: payload.description,
+      invoiceNumber: cleanInvNum,
+      paymentType: payType
+    });
+  } catch (err) {
+    console.warn("Direct Firestore transaction save warning:", err);
+  }
+
+  // 2. Also dispatch to webhook proxy
   try {
     console.log('Sending invoice payment webhook:', payload);
     const response = await fetch('/api/webhook-proxy', {
@@ -65,3 +85,4 @@ export const sendInvoicePaymentWebhook = async (params: {
     console.error('Error sending invoice payment webhook:', error);
   }
 };
+

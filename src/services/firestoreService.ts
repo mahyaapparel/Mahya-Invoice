@@ -41,6 +41,11 @@ export async function saveOrderToFirestore(order: ConvectionOrder) {
       ...order,
       updatedAt: new Date().toISOString()
     }, { merge: true });
+
+    // Automatically sync transactions to Firestore 'transactions' collection for Financial Dashboard
+    syncOrderTransactionsToFirestore(order).catch(err => {
+      console.warn("Failed syncing transactions for order:", order.id, err);
+    });
   } catch (err) {
     console.error("Error saving order to Firestore:", err);
     throw err;
@@ -194,6 +199,81 @@ export async function fetchSettingsFromFirestore(): Promise<InvoiceSettings | nu
   }
 }
 
+
+const TRANSACTIONS_COLLECTION = 'transactions';
+
+export interface FinanceTransaction {
+  id: string;
+  date: string;
+  division: string;
+  type: 'Pemasukan' | 'Pengeluaran';
+  amount: number;
+  description: string;
+  invoiceNumber?: string;
+  paymentType?: 'DP' | 'Pelunasan';
+  createdAt?: string;
+}
+
+export async function saveTransactionToFirestore(tx: FinanceTransaction) {
+  try {
+    const docRef = doc(db, TRANSACTIONS_COLLECTION, tx.id);
+    await setDoc(docRef, {
+      ...tx,
+      createdAt: tx.createdAt || new Date().toISOString()
+    }, { merge: true });
+    console.log("Transaction synced to Firestore 'transactions' collection:", tx.id);
+  } catch (err) {
+    console.error("Error saving transaction to Firestore:", err);
+  }
+}
+
+export async function syncOrderTransactionsToFirestore(order: ConvectionOrder) {
+  try {
+    if (!order) return;
+    const cleanInvNum = (order.invoiceNumber || order.id || 'INV').replace(/^#/, '');
+    const custName = (order.customerName || 'Pelanggan').trim();
+
+    // Sync from paymentHistory if available
+    if (order.paymentHistory && order.paymentHistory.length > 0) {
+      for (const pay of order.paymentHistory) {
+        if ((pay.status === 'SUCCESS' || !pay.status) && pay.amount > 0) {
+          const payType = (pay.type || '').toUpperCase() === 'DP' ? 'DP' : 'Pelunasan';
+          const formattedDate = pay.timestamp ? pay.timestamp.split('T')[0] : new Date().toISOString().split('T')[0];
+          
+          await saveTransactionToFirestore({
+            id: pay.id || `tx-${order.id}-${payType.toLowerCase()}`,
+            date: formattedDate,
+            division: 'Sablon',
+            type: 'Pemasukan',
+            amount: pay.amount,
+            description: `${payType} Invoice #${cleanInvNum} - ${custName}`,
+            invoiceNumber: cleanInvNum,
+            paymentType: payType
+          });
+        }
+      }
+    } else if (order.dpAmount && order.dpAmount > 0) {
+      // Fallback for DP if paymentHistory is not yet populated
+      const isLunas = order.paymentStatus === 'LUNAS' || order.remainingBalance <= 0;
+      const payType = isLunas ? 'Pelunasan' : 'DP';
+      const formattedDate = order.createdAt ? order.createdAt.split('T')[0] : new Date().toISOString().split('T')[0];
+
+      await saveTransactionToFirestore({
+        id: `tx-${order.id}-${payType.toLowerCase()}`,
+        date: formattedDate,
+        division: 'Sablon',
+        type: 'Pemasukan',
+        amount: order.dpAmount,
+        description: `${payType} Invoice #${cleanInvNum} - ${custName}`,
+        invoiceNumber: cleanInvNum,
+        paymentType: payType
+      });
+    }
+  } catch (err) {
+    console.error("Error syncing order transactions to Firestore:", err);
+  }
+}
+
 // Initial Data Seeding if empty
 export async function seedInitialFirestoreData(
   defaultOrders: ConvectionOrder[],
@@ -206,7 +286,14 @@ export async function seedInitialFirestoreData(
     if (ordersSnap.empty && defaultOrders.length > 0) {
       for (const ord of defaultOrders) {
         await setDoc(doc(db, ORDERS_COLLECTION, ord.id), ord);
+        await syncOrderTransactionsToFirestore(ord);
       }
+    } else {
+      // Ensure existing orders also sync their transactions
+      ordersSnap.forEach((docSnap) => {
+        const ord = docSnap.data() as ConvectionOrder;
+        syncOrderTransactionsToFirestore(ord).catch(() => {});
+      });
     }
 
     // 2. Check customers
@@ -227,3 +314,4 @@ export async function seedInitialFirestoreData(
     console.error("Error seeding initial Firestore data:", err);
   }
 }
+
