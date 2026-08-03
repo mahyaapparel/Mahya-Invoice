@@ -1965,15 +1965,6 @@ export default function CashierDashboard() {
                             </button>
                           )}
 
-                          {/* Catat / Sync Transaksi Ke Divisi */}
-                          <button
-                            onClick={() => handleOpenTransactionModal(order)}
-                            title="Catat / Sync Transaksi ke Divisi (Konveksi, Sablon, Asesoris)"
-                            className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
-                            id={`btn-catat-tx-${order.id}`}
-                          >
-                            <DollarSign size={16} />
-                          </button>
 
                           {/* Delete */}
                           <button
