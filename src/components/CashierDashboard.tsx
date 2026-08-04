@@ -2876,6 +2876,7 @@ export default function CashierDashboard() {
         <InvoiceDetailModal
           order={selectedInvoice}
           onClose={() => setSelectedInvoice(null)}
+          onUpdateOrder={(updated) => setSelectedInvoice(updated)}
           settings={invoiceSettings}
         />
       )}

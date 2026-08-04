@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { X, Printer, Copy, Check, Calendar, Phone, Mail, MapPin, DollarSign, Download, Loader2, ExternalLink, CreditCard } from 'lucide-react';
-import { ConvectionOrder, InvoiceSettings } from '../types';
+import { X, Printer, Copy, Check, Calendar, Phone, Mail, MapPin, DollarSign, Download, Loader2, ExternalLink, CreditCard, Edit3, Trash2, Save } from 'lucide-react';
+import { ConvectionOrder, InvoiceSettings, PaymentRecord, PaymentStatus } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
 import { exportElementToPdf } from '../utils/pdfSanitizer';
 import mahyaLogo from '../assets/images/mahya_logo_1784646837491.jpg';
 import html2pdf from 'html2pdf.js';
+import { saveOrderToFirestore, saveTransactionToFirestore, deleteTransactionFromFirestore, syncOrderTransactionsToFirestore } from '../services/firestoreService';
+import { sendInvoicePaymentWebhook } from '../utils/webhook';
 
 const defaultInvoiceSettings: InvoiceSettings = {
   businessName: "MAHYA APPAREL",
@@ -28,13 +30,140 @@ interface InvoiceDetailModalProps {
   order: ConvectionOrder;
   onClose: () => void;
   onUpdatePaymentStatus?: (id: string, status: 'BELUM_BAYAR' | 'DP_DIBAYAR' | 'LUNAS') => void;
+  onUpdateOrder?: (updatedOrder: ConvectionOrder) => void;
   settings?: InvoiceSettings | null;
 }
 
-export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStatus, settings }: InvoiceDetailModalProps) {
+export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStatus, onUpdateOrder, settings }: InvoiceDetailModalProps) {
   const [copied, setCopied] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const activeSettings = settings || defaultInvoiceSettings;
+
+  // State for Editing Payment Record
+  const [editingPayId, setEditingPayId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState<number>(0);
+  const [editType, setEditType] = useState<'DP' | 'PELUNASAN' | 'FULL'>('DP');
+  const [editMethod, setEditMethod] = useState<string>('CASH');
+  const [editReference, setEditReference] = useState<string>('');
+  const [editDate, setEditDate] = useState<string>('');
+  const [isSavingTx, setIsSavingTx] = useState<boolean>(false);
+
+  const handleStartEdit = (pay: PaymentRecord) => {
+    setEditingPayId(pay.id);
+    setEditAmount(pay.amount);
+    setEditType((pay.type as any) || 'DP');
+    setEditMethod(pay.method || 'CASH');
+    setEditReference(pay.reference || '');
+    setEditDate(pay.timestamp ? pay.timestamp.split('T')[0] : new Date().toISOString().split('T')[0]);
+  };
+
+  const handleSaveEdit = async (payId: string) => {
+    setIsSavingTx(true);
+    try {
+      const updatedHistory = (order.paymentHistory || []).map((pay) => {
+        if (pay.id === payId) {
+          return {
+            ...pay,
+            amount: Number(editAmount) || 0,
+            type: editType,
+            method: editMethod,
+            reference: editReference,
+            timestamp: editDate ? new Date(editDate).toISOString() : pay.timestamp
+          };
+        }
+        return pay;
+      });
+
+      const totalPaid = updatedHistory.reduce((sum, item) => sum + item.amount, 0);
+      const remaining = Math.max(0, order.totalPrice - totalPaid);
+      const newPaymentStatus: PaymentStatus = remaining <= 0 ? 'LUNAS' : (totalPaid > 0 ? 'DP_DIBAYAR' : 'BELUM_BAYAR');
+      const dpItem = updatedHistory.find(p => p.type === 'DP');
+      const newDpAmount = dpItem ? dpItem.amount : (totalPaid > 0 ? totalPaid : 0);
+
+      const updatedOrder: ConvectionOrder = {
+        ...order,
+        paymentHistory: updatedHistory,
+        dpAmount: newDpAmount,
+        remainingBalance: remaining,
+        paymentStatus: newPaymentStatus
+      };
+
+      await saveOrderToFirestore(updatedOrder);
+
+      const cleanInv = (order.invoiceNumber || order.id).replace(/^#/, '');
+      const payIndex = updatedHistory.findIndex(p => p.id === payId);
+      const txSeq = payIndex >= 0 ? payIndex + 1 : 1;
+      const invSeq = txSeq > 1 ? `${cleanInv}#${txSeq}` : cleanInv;
+
+      await saveTransactionToFirestore({
+        id: payId,
+        date: editDate || new Date().toISOString().split('T')[0],
+        division: order.division || 'Konveksi',
+        type: 'Pemasukan',
+        amount: Number(editAmount) || 0,
+        description: `${editType} Invoice #${invSeq} - ${order.customerName}`,
+        invoiceNumber: invSeq,
+        paymentType: editType
+      });
+
+      await sendInvoicePaymentWebhook({
+        amount: Number(editAmount) || 0,
+        invoiceNumber: cleanInv,
+        customerName: order.customerName,
+        paymentType: editType === 'DP' ? 'DP' : 'Pelunasan',
+        isFullOrSettled: remaining <= 0,
+        division: order.division || 'Konveksi',
+        txSequence: txSeq,
+        date: editDate
+      }).catch(() => {});
+
+      if (onUpdateOrder) {
+        onUpdateOrder(updatedOrder);
+      }
+      setEditingPayId(null);
+    } catch (err) {
+      console.error("Error saving edited payment:", err);
+    } finally {
+      setIsSavingTx(false);
+    }
+  };
+
+  const handleDeletePay = async (pay: PaymentRecord) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus catatan pembayaran sebesar ${formatRupiah(pay.amount)}? Sisa tagihan akan disesuaikan otomatis.`)) {
+      return;
+    }
+
+    setIsSavingTx(true);
+    try {
+      await deleteTransactionFromFirestore(pay.id);
+
+      const updatedHistory = (order.paymentHistory || []).filter(p => p.id !== pay.id);
+      const totalPaid = updatedHistory.reduce((sum, item) => sum + item.amount, 0);
+      const remaining = Math.max(0, order.totalPrice - totalPaid);
+      const newPaymentStatus: PaymentStatus = remaining <= 0 ? 'LUNAS' : (totalPaid > 0 ? 'DP_DIBAYAR' : 'BELUM_BAYAR');
+      const dpItem = updatedHistory.find(p => p.type === 'DP');
+      const newDpAmount = dpItem ? dpItem.amount : (totalPaid > 0 ? totalPaid : 0);
+
+      const updatedOrder: ConvectionOrder = {
+        ...order,
+        paymentHistory: updatedHistory,
+        dpAmount: newDpAmount,
+        remainingBalance: remaining,
+        paymentStatus: newPaymentStatus
+      };
+
+      await saveOrderToFirestore(updatedOrder);
+      await syncOrderTransactionsToFirestore(updatedOrder);
+
+      if (onUpdateOrder) {
+        onUpdateOrder(updatedOrder);
+      }
+    } catch (err) {
+      console.error("Error deleting payment:", err);
+    } finally {
+      setIsSavingTx(false);
+    }
+  };
 
   // Generate the real customer payment link url
   const getPaymentLink = () => {
@@ -798,29 +927,149 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
           </div>
 
           {/* Payment History Log */}
-          {order.paymentHistory.length > 0 && (
+          {order.paymentHistory && order.paymentHistory.length > 0 && (
             <div className="mt-8 pt-8 border-t border-slate-100 print:hidden">
-              <span className="text-xs uppercase font-bold text-slate-400 block mb-3">Histori Pembayaran Pelanggan</span>
-              <div className="space-y-2">
-                {order.paymentHistory.map((pay) => (
-                  <div key={pay.id} className="flex justify-between items-center bg-emerald-50/50 px-4 py-3 rounded-xl border border-emerald-100/50 text-sm">
-                    <div className="flex items-center gap-3">
-                      <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                      <div>
-                        <p className="font-bold text-slate-800">
-                          Uang {pay.type === 'DP' ? 'Muka (DP)' : pay.type === 'PELUNASAN' ? 'Pelunasan' : 'Lunas/Penuh'}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {pay.method.replace('_', ' ')} — {pay.reference}
-                        </p>
-                      </div>
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-xs uppercase font-bold text-slate-500">
+                  Histori Pembayaran Pelanggan ({order.paymentHistory.length} Transaksi)
+                </span>
+                <span className="text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Divisi: {order.division || 'Konveksi'}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {order.paymentHistory.map((pay, idx) => {
+                  const isEditing = editingPayId === pay.id;
+                  const txSeq = idx + 1;
+                  return (
+                    <div key={pay.id || idx} className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100/70 text-sm">
+                      {isEditing ? (
+                        <div className="space-y-3 bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                          <div className="flex justify-between items-center border-b pb-2">
+                            <span className="font-bold text-xs text-emerald-800">Edit Transaksi Pembayaran #{txSeq}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">ID: {pay.id}</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                            <div>
+                              <label className="font-semibold text-slate-600 block mb-1">Jumlah (Rp)</label>
+                              <input
+                                type="number"
+                                value={editAmount}
+                                onChange={(e) => setEditAmount(Number(e.target.value))}
+                                className="w-full bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="font-semibold text-slate-600 block mb-1">Tipe Pembayaran</label>
+                              <select
+                                value={editType}
+                                onChange={(e) => setEditType(e.target.value as any)}
+                                className="w-full bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="DP">DP (Uang Muka)</option>
+                                <option value="PELUNASAN">Pelunasan</option>
+                                <option value="FULL">Lunas / Penuh</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="font-semibold text-slate-600 block mb-1">Metode</label>
+                              <select
+                                value={editMethod}
+                                onChange={(e) => setEditMethod(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="CASH">Tunai (CASH)</option>
+                                <option value="TRANSFER_BANK">Transfer Bank</option>
+                                <option value="MIDTRANS">QRIS / Online</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="font-semibold text-slate-600 block mb-1">Tanggal</label>
+                              <input
+                                type="date"
+                                value={editDate}
+                                onChange={(e) => setEditDate(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="font-semibold text-slate-600 block mb-1">Catatan / Referensi</label>
+                              <input
+                                type="text"
+                                value={editReference}
+                                onChange={(e) => setEditReference(e.target.value)}
+                                placeholder="Contoh: Bukti Transfer BRI / Catatan Kasir"
+                                className="w-full bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded text-slate-800 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 pt-2 border-t">
+                            <button
+                              type="button"
+                              onClick={() => setEditingPayId(null)}
+                              disabled={isSavingTx}
+                              className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEdit(pay.id)}
+                              disabled={isSavingTx}
+                              className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center gap-1 cursor-pointer"
+                            >
+                              {isSavingTx ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                              <span>Simpan Perubahan</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                          <div className="flex items-center gap-3">
+                            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shrink-0"></span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-slate-800">
+                                  Uang {pay.type === 'DP' ? 'Muka (DP)' : pay.type === 'PELUNASAN' ? 'Pelunasan' : 'Lunas/Penuh'}
+                                </p>
+                                {txSeq > 1 && (
+                                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded border border-emerald-200">
+                                    #{txSeq}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500">
+                                {pay.method.replace('_', ' ')} — {pay.reference || 'Pembayaran Kasir'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-100">
+                            <div className="text-left sm:text-right">
+                              <p className="font-bold font-mono text-emerald-700">{formatRupiah(pay.amount)}</p>
+                              <p className="text-[10px] text-slate-400">{new Date(pay.timestamp).toLocaleString('id-ID')}</p>
+                            </div>
+                            <div className="flex items-center gap-1 border-l pl-2 border-emerald-200">
+                              <button
+                                onClick={() => handleStartEdit(pay)}
+                                title="Edit Catatan Pembayaran Ini"
+                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Edit3 size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleDeletePay(pay)}
+                                title="Hapus Catatan Pembayaran Ini"
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold font-mono text-emerald-700">{formatRupiah(pay.amount)}</p>
-                      <p className="text-[10px] text-slate-400">{new Date(pay.timestamp).toLocaleString('id-ID')}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

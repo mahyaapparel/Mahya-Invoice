@@ -233,6 +233,23 @@ export async function saveTransactionToFirestore(tx: FinanceTransaction) {
   }
 }
 
+export async function deleteTransactionFromFirestore(txId: string) {
+  try {
+    const docRefLocal = doc(db, TRANSACTIONS_COLLECTION, txId);
+    await deleteDoc(docRefLocal);
+
+    try {
+      const docRefFinance = doc(financeDb, TRANSACTIONS_COLLECTION, txId);
+      await deleteDoc(docRefFinance);
+      console.log("Transaction successfully deleted from Finance Dashboard DB:", txId);
+    } catch (finErr) {
+      console.warn("Direct Finance DB delete notice:", finErr);
+    }
+  } catch (err) {
+    console.error("Error deleting transaction from Firestore:", err);
+  }
+}
+
 export async function syncOrderTransactionsToFirestore(order: ConvectionOrder) {
   try {
     if (!order) return;
@@ -241,33 +258,37 @@ export async function syncOrderTransactionsToFirestore(order: ConvectionOrder) {
 
     // Sync from paymentHistory if available
     if (order.paymentHistory && order.paymentHistory.length > 0) {
-      for (const pay of order.paymentHistory) {
+      order.paymentHistory.forEach(async (pay, idx) => {
         if ((pay.status === 'SUCCESS' || !pay.status) && pay.amount > 0) {
           const payType = (pay.type || '').toUpperCase() === 'DP' ? 'DP' : 'Pelunasan';
           const formattedDate = pay.timestamp ? pay.timestamp.split('T')[0] : new Date().toISOString().split('T')[0];
+          const txSeq = idx + 1;
+          const invNumWithSeq = txSeq > 1 ? `${cleanInvNum}#${txSeq}` : cleanInvNum;
+          const division = order.division || 'Konveksi';
           
           await saveTransactionToFirestore({
-            id: pay.id || `tx-${order.id}-${payType.toLowerCase()}`,
+            id: pay.id || `tx-${order.id}-${payType.toLowerCase()}-${txSeq}`,
             date: formattedDate,
-            division: 'Konveksi',
+            division: division,
             type: 'Pemasukan',
             amount: pay.amount,
-            description: `${payType} Invoice #${cleanInvNum} - ${custName}`,
-            invoiceNumber: cleanInvNum,
+            description: `${payType} Invoice #${invNumWithSeq} - ${custName}`,
+            invoiceNumber: invNumWithSeq,
             paymentType: payType
           });
         }
-      }
+      });
     } else if (order.dpAmount && order.dpAmount > 0) {
       // Fallback for DP if paymentHistory is not yet populated
       const isLunas = order.paymentStatus === 'LUNAS' || order.remainingBalance <= 0;
       const payType = isLunas ? 'Pelunasan' : 'DP';
       const formattedDate = order.createdAt ? order.createdAt.split('T')[0] : new Date().toISOString().split('T')[0];
+      const division = order.division || 'Konveksi';
 
       await saveTransactionToFirestore({
         id: `tx-${order.id}-${payType.toLowerCase()}`,
         date: formattedDate,
-        division: 'Konveksi',
+        division: division,
         type: 'Pemasukan',
         amount: order.dpAmount,
         description: `${payType} Invoice #${cleanInvNum} - ${custName}`,
