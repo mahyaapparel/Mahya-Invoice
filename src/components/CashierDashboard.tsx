@@ -239,6 +239,7 @@ export default function CashierDashboard() {
     fabricType: 'Cotton Combed 30s',
     fabricColor: 'Hitam',
     sablonBordir: 'Sablon Plastisol',
+    division: 'Konveksi' as 'Konveksi' | 'Sablon' | 'Asesoris' | string,
     sizeS: 0,
     sizeM: 0,
     sizeL: 0,
@@ -862,6 +863,7 @@ export default function CashierDashboard() {
       fabricType: 'Cotton Combed 30s',
       fabricColor: 'Hitam',
       sablonBordir: 'Sablon Plastisol',
+      division: 'Konveksi',
       sizeS: 0,
       sizeM: 0,
       sizeL: 0,
@@ -909,6 +911,7 @@ export default function CashierDashboard() {
       fabricType: order.fabricType || '',
       fabricColor: order.fabricColor || '',
       sablonBordir: order.sablonBordir || '',
+      division: order.division || 'Konveksi',
       sizeS: order.sizeS || 0,
       sizeM: order.sizeM || 0,
       sizeL: order.sizeL || 0,
@@ -1073,6 +1076,7 @@ export default function CashierDashboard() {
         fabricType: formData.fabricType || '',
         fabricColor: formData.fabricColor || '',
         sablonBordir: formData.sablonBordir || '',
+        division: formData.division || 'Konveksi',
         sizeS: sizeS_total,
         sizeM: sizeM_total,
         sizeL: sizeL_total,
@@ -1120,12 +1124,15 @@ export default function CashierDashboard() {
 
       if (addedAmount > 0) {
         const isLunas = newDpAmount >= liveTotal;
+        const totalTxCount = finalPaymentHistory ? finalPaymentHistory.length : 1;
         sendInvoicePaymentWebhook({
           amount: addedAmount,
           invoiceNumber: invNum,
           customerName: formData.customerName,
           paymentType: isLunas ? 'Pelunasan' : 'DP',
-          isFullOrSettled: isLunas
+          isFullOrSettled: isLunas,
+          division: formData.division || 'Konveksi',
+          txSequence: totalTxCount
         }).catch(() => {});
       }
 
@@ -1210,11 +1217,14 @@ export default function CashierDashboard() {
       const updatedRemaining = Math.max(0, quickPayOrder.remainingBalance - quickPayAmount);
       const updatedStatus: PaymentStatus = updatedRemaining <= 0 ? 'LUNAS' : 'DP_DIBAYAR';
 
+      const updatedPaymentHistory = [...(quickPayOrder.paymentHistory || []), newPayRecord];
+      const totalTxCount = updatedPaymentHistory.length;
+
       const updatedOrderObj: ConvectionOrder = {
         ...quickPayOrder,
         remainingBalance: updatedRemaining,
         paymentStatus: updatedStatus,
-        paymentHistory: [...(quickPayOrder.paymentHistory || []), newPayRecord]
+        paymentHistory: updatedPaymentHistory
       };
 
       await saveOrderToFirestore(updatedOrderObj);
@@ -1224,7 +1234,9 @@ export default function CashierDashboard() {
         invoiceNumber: quickPayOrder.invoiceNumber || quickPayOrder.id,
         customerName: quickPayOrder.customerName,
         paymentType: isPelunasan ? 'Pelunasan' : 'DP',
-        isFullOrSettled: isPelunasan
+        isFullOrSettled: isPelunasan,
+        division: quickPayOrder.division || 'Konveksi',
+        txSequence: totalTxCount
       }).catch(() => {});
 
       fetch(`/api/orders/${quickPayOrder.id}/payments`, {
@@ -1631,16 +1643,7 @@ export default function CashierDashboard() {
               <Lock size={18} className="text-slate-600" />
               <span>Kunci Kasir</span>
             </button>
-            {/* Tombol Catat Transaksi Header */}
-            <button
-              onClick={() => handleOpenTransactionModal()}
-              className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all active:scale-95 cursor-pointer"
-              id="btn-catat-transaksi-header"
-              title="Catat transaksi keuangan ke Divisi Konveksi, Sablon, atau Asesoris"
-            >
-              <DollarSign size={18} />
-              <span>Catat Transaksi</span>
-            </button>
+
 
             <button
               onClick={() => {
@@ -1844,9 +1847,14 @@ export default function CashierDashboard() {
                         <span className="text-xs text-slate-500 mt-1 block">
                           {order.fabricType} • {order.fabricColor}
                         </span>
-                        <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100/50 px-1.5 py-0.5 rounded font-medium inline-block mt-1">
-                          {order.sablonBordir}
-                        </span>
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100/50 px-1.5 py-0.5 rounded font-medium inline-block">
+                            {order.sablonBordir}
+                          </span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100/50 px-1.5 py-0.5 rounded font-semibold inline-block">
+                            {order.division || 'Konveksi'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Qty & Deadline */}
@@ -2120,8 +2128,21 @@ export default function CashierDashboard() {
 
               {/* Row 2: Spesifikasi Garment */}
               <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-4">
-                <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide">Spesifikasi Garment & Konveksi</h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide">Spesifikasi Garment & Divisi Transaksi</h3>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">Divisi Keuangan*</label>
+                    <select
+                      value={formData.division || 'Konveksi'}
+                      onChange={(e) => setFormData({ ...formData, division: e.target.value })}
+                      className="w-full bg-white border border-slate-200 px-3 py-2.5 rounded-lg focus:outline-none focus:border-blue-500 text-sm font-bold text-slate-800 cursor-pointer"
+                      id="select-form-division"
+                    >
+                      <option value="Konveksi">Konveksi</option>
+                      <option value="Sablon">Sablon</option>
+                      <option value="Asesoris">Asesoris</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">Tipe Produk</label>
                     <select

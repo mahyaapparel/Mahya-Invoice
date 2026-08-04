@@ -312,12 +312,15 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
       setPaymentDone(true);
 
       const isPelunasan = paymentOption === 'PELUNASAN' || paymentOption === 'FULL' || amountToPay >= order.remainingBalance;
+      const totalTxCount = updatedOrder.paymentHistory ? updatedOrder.paymentHistory.length : (order.paymentHistory ? order.paymentHistory.length + 1 : 1);
       sendInvoicePaymentWebhook({
         amount: amountToPay,
         invoiceNumber: order.invoiceNumber || order.id,
         customerName: order.customerName,
         paymentType: isPelunasan ? 'Pelunasan' : 'DP',
-        isFullOrSettled: isPelunasan
+        isFullOrSettled: isPelunasan,
+        division: order.division || 'Konveksi',
+        txSequence: totalTxCount
       }).catch(() => {});
 
       onPaymentSuccess();

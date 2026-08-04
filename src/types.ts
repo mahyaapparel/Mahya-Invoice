@@ -32,6 +32,7 @@ export interface ConvectionOrder {
   fabricType: string;  // e.g. Cotton Combed 30s, Fleece, American Drill
   fabricColor: string; // e.g. Hitam, Navy, Putih
   sablonBordir: string; // e.g. Sablon Plastisol, Bordir Komputer
+  division?: 'Konveksi' | 'Sablon' | 'Asesoris' | string; // Divisi Keuangan / Transaksi
   
   // Size counts
   sizeS: number;

@@ -30,6 +30,7 @@ export const sendInvoicePaymentWebhook = async (params: {
   division?: string;
   type?: string;
   description?: string;
+  txSequence?: number;
 }) => {
   if (!params.amount || params.amount <= 0) return;
 
@@ -37,7 +38,11 @@ export const sendInvoicePaymentWebhook = async (params: {
     ? params.date.split('T')[0]
     : new Date().toISOString().split('T')[0];
 
-  const cleanInvNum = params.invoiceNumber ? params.invoiceNumber.replace(/^#/, '') : 'INV';
+  let cleanInvNum = params.invoiceNumber ? params.invoiceNumber.replace(/^#/, '') : 'INV';
+  if (params.txSequence && params.txSequence > 1 && !cleanInvNum.includes('#')) {
+    cleanInvNum = `${cleanInvNum}#${params.txSequence}`;
+  }
+
   const cleanCustomerName = params.customerName ? params.customerName.trim() : 'Pelanggan';
   const payType = normalizePaymentType(params.paymentType || 'DP', params.isFullOrSettled);
   const division = params.division || 'Konveksi';
