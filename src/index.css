@@ -32,9 +32,42 @@
     max-height: none !important;
   }
 
-  /* Ensure page breaks cleanly without clipping */
+  /* Default A4 print page size */
   @page {
     size: A4 portrait;
     margin: 12mm;
+  }
+}
+
+/* Thermal Receipt Print overrides */
+@media print {
+  body.printing-receipt-mode #printable-invoice,
+  body.printing-receipt-mode #customer-printable-invoice {
+    display: none !important;
+  }
+
+  body.printing-receipt-mode #printable-thermal-receipt {
+    display: block !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 2mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.printing-receipt-mode.paper-58mm @page {
+    size: 58mm auto;
+    margin: 0;
+  }
+
+  body.printing-receipt-mode.paper-80mm @page {
+    size: 80mm auto;
+    margin: 0;
   }
 }

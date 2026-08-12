@@ -4,12 +4,13 @@ import {
   TrendingUp, User, Phone, ExternalLink, Copy, Trash2, Edit3, 
   AlertTriangle, Activity, FileText, Check, MapPin, CreditCard, Scissors, Sparkles, SlidersHorizontal, X, Settings, Upload,
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
-  Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered
+  Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered, Receipt
 } from 'lucide-react';
 import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord, FinanceTransaction } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
 import { sendInvoicePaymentWebhook } from '../utils/webhook';
 import InvoiceDetailModal from './InvoiceDetailModal';
+import ReceiptModal from './ReceiptModal';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
 import {
@@ -129,6 +130,7 @@ export default function CashierDashboard() {
   // Modal control states
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [selectedInvoice, setSelectedInvoice] = useState<ConvectionOrder | null>(null);
+  const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<ConvectionOrder | null>(null);
   const [quickPayOrder, setQuickPayOrder] = useState<ConvectionOrder | null>(null);
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const [shareOrder, setShareOrder] = useState<ConvectionOrder | null>(null);
@@ -1912,11 +1914,21 @@ export default function CashierDashboard() {
                           {/* Invoice Detail */}
                           <button
                             onClick={() => setSelectedInvoice(order)}
-                            title="Buka Invoice"
+                            title="Buka Invoice Full A4"
                             className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                             id={`btn-view-${order.id}`}
                           >
                             <FileText size={16} />
+                          </button>
+
+                          {/* Cetak Struk Nota Kasir Thermal */}
+                          <button
+                            onClick={() => setSelectedReceiptOrder(order)}
+                            title="Cetak Struk Nota Kasir (Thermal 58mm/80mm)"
+                            className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 hover:text-amber-700 transition-colors cursor-pointer"
+                            id={`btn-receipt-${order.id}`}
+                          >
+                            <Receipt size={16} />
                           </button>
 
                           {/* Open Customer Portal Directly */}
@@ -2877,6 +2889,15 @@ export default function CashierDashboard() {
           order={selectedInvoice}
           onClose={() => setSelectedInvoice(null)}
           onUpdateOrder={(updated) => setSelectedInvoice(updated)}
+          settings={invoiceSettings}
+        />
+      )}
+
+      {/* MODAL: Cetak Struk Nota Kasir Thermal */}
+      {selectedReceiptOrder && (
+        <ReceiptModal
+          order={selectedReceiptOrder}
+          onClose={() => setSelectedReceiptOrder(null)}
           settings={invoiceSettings}
         />
       )}

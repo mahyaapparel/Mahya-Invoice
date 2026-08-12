@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Printer, Copy, Check, Calendar, Phone, Mail, MapPin, DollarSign, Download, Loader2, ExternalLink, CreditCard, Edit3, Trash2, Save } from 'lucide-react';
+import { X, Printer, Copy, Check, Calendar, Phone, Mail, MapPin, DollarSign, Download, Loader2, ExternalLink, CreditCard, Edit3, Trash2, Save, Receipt } from 'lucide-react';
 import { ConvectionOrder, InvoiceSettings, PaymentRecord, PaymentStatus } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
 import { exportElementToPdf } from '../utils/pdfSanitizer';
@@ -7,6 +7,7 @@ import mahyaLogo from '../assets/images/mahya_logo_1784646837491.jpg';
 import html2pdf from 'html2pdf.js';
 import { saveOrderToFirestore, saveTransactionToFirestore, deleteTransactionFromFirestore, syncOrderTransactionsToFirestore } from '../services/firestoreService';
 import { sendInvoicePaymentWebhook } from '../utils/webhook';
+import ReceiptModal from './ReceiptModal';
 
 const defaultInvoiceSettings: InvoiceSettings = {
   businessName: "MAHYA APPAREL",
@@ -37,6 +38,7 @@ interface InvoiceDetailModalProps {
 export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStatus, onUpdateOrder, settings }: InvoiceDetailModalProps) {
   const [copied, setCopied] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const activeSettings = settings || defaultInvoiceSettings;
 
   // State for Editing Payment Record
@@ -277,6 +279,16 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
             >
               {isExportingPDF ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
               {isExportingPDF ? 'Mengunduh...' : 'Unduh PDF'}
+            </button>
+
+            <button
+              onClick={() => setShowReceiptModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all shadow-sm cursor-pointer"
+              id="btn-open-receipt-modal"
+              title="Cetak Struk Nota Kasir (Format Thermal POS 58mm/80mm)"
+            >
+              <Receipt size={15} />
+              Cetak Struk
             </button>
 
             <button
@@ -1110,6 +1122,14 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
         </div>
 
       </div>
+
+      {showReceiptModal && (
+        <ReceiptModal
+          order={order}
+          onClose={() => setShowReceiptModal(false)}
+          settings={settings}
+        />
+      )}
     </div>
   );
 }
