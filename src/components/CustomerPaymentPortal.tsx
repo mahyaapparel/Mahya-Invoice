@@ -441,13 +441,13 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
       <div id="customer-printable-invoice" className="bg-slate-50 print:bg-white print:p-4">
 
       {/* Main Container */}
-      <main className="max-w-4xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="max-w-5xl lg:max-w-6xl mx-auto px-3 sm:px-6 mt-6 sm:mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
         
-        {/* Left column: Order Status, Timeline, Specifications (8 cols) */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* Left column: Order Status, Timeline, Specifications (7-8 cols) */}
+        <div className="lg:col-span-7 xl:col-span-7 space-y-6">
           
           {/* Main banner & Progress Tracker */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">PROGRES PRODUKSI</span>
             <h2 className="text-xl font-extrabold text-slate-800">
               {order.productionStatus === 'DIKIRIM' 
@@ -592,24 +592,24 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
           </div>
 
           {/* Specifications Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
             <h3 className="text-base font-bold text-slate-800 mb-4">Spesifikasi Pesanan</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm mb-6">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50">
-                <span className="text-xs text-slate-400 block font-medium">Model Produk</span>
-                <span className="font-bold text-slate-700">{order.productType}</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 text-sm mb-5">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[11px] text-slate-400 block font-medium">Model Produk</span>
+                <span className="font-bold text-slate-800 break-words">{order.productType}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50">
-                <span className="text-xs text-slate-400 block font-medium">Bahan Kain</span>
-                <span className="font-bold text-slate-700">{order.fabricType || '-'}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[11px] text-slate-400 block font-medium">Bahan Kain</span>
+                <span className="font-bold text-slate-800 break-words">{order.fabricType || '-'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50">
-                <span className="text-xs text-slate-400 block font-medium">Warna Kain</span>
-                <span className="font-bold text-slate-700">{order.fabricColor || '-'}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[11px] text-slate-400 block font-medium">Warna Kain</span>
+                <span className="font-bold text-slate-800 break-words">{order.fabricColor || '-'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50">
-                <span className="text-xs text-slate-400 block font-medium">Aplikasi Desain</span>
-                <span className="font-bold text-slate-700">{order.sablonBordir || '-'}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[11px] text-slate-400 block font-medium">Aplikasi Desain</span>
+                <span className="font-bold text-slate-800 break-words">{order.sablonBordir || '-'}</span>
               </div>
             </div>
 
@@ -621,15 +621,15 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                   <div className="space-y-3">
                     {/* Rate summary badges */}
                     {breakdown.pricePerVariant.length > 0 && (
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-2">
                           Tarif Satuan Variasi & Ukuran:
                         </span>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-1.5 sm:gap-2">
                           {breakdown.pricePerVariant.map((pv, idx) => (
                             <span
                               key={idx}
-                              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold bg-white text-blue-900 border border-blue-200 shadow-2xs"
+                              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-semibold bg-white text-blue-900 border border-blue-200 shadow-2xs"
                             >
                               <span className="text-slate-600">{pv.label} ({pv.sleeve}):</span>
                               <span className="font-mono font-bold text-blue-800">
@@ -641,76 +641,138 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                       </div>
                     )}
 
-                    {/* Detailed Itemized Rows Table with horizontal scroll support and compact typography */}
-                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
-                      <div className="overflow-x-auto max-w-full touch-pan-x scrollbar-thin">
-                        <table className="w-full text-left border-collapse table-auto min-w-[540px]">
-                          <thead>
-                            <tr className="bg-slate-100 text-slate-700 text-[9.5px] sm:text-[10px] uppercase font-extrabold tracking-wider border-b border-slate-200">
-                              <th className="py-2 px-2.5 text-center w-8 whitespace-nowrap">No</th>
-                              <th className="py-2 px-2.5 whitespace-nowrap">Deskripsi Item & Ukuran</th>
-                              <th className="py-2 px-2.5 text-center whitespace-nowrap">Tipe Lengan</th>
-                              <th className="py-2 px-2.5 text-center whitespace-nowrap w-20">Jumlah (Qty)</th>
-                              <th className="py-2 px-2.5 text-right whitespace-nowrap w-24">Harga Satuan</th>
-                              <th className="py-2 px-2.5 text-right whitespace-nowrap w-28">Subtotal</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 text-[11px] sm:text-xs">
-                            {breakdown.lines.map((line, idx) => (
-                              <tr key={line.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="py-2 px-2.5 text-center text-slate-400 font-mono text-[10px] sm:text-[11px]">{idx + 1}</td>
-                                <td className="py-2 px-2.5 font-bold text-slate-800">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span>{line.name}</span>
-                                    <span className="inline-block px-1.5 py-0.5 rounded text-[9.5px] sm:text-[10px] font-extrabold bg-blue-100/90 text-blue-900 border border-blue-200">
-                                      {line.size}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="py-2 px-2.5 text-center whitespace-nowrap">
-                                  <span className={`inline-block text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                    {/* Mobile View: Dedicated Uncut Cards (< sm) */}
+                    <div className="sm:hidden space-y-2.5">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">
+                        Rincian Item ({breakdown.lines.length} Varian):
+                      </div>
+                      {breakdown.lines.map((line, idx) => (
+                        <div
+                          key={line.id || idx}
+                          className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2">
+                              <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold flex items-center justify-center font-mono shrink-0 mt-0.5">
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-900 leading-snug">{line.name}</h4>
+                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-900 border border-blue-200">
+                                    Ukuran {line.size}
+                                  </span>
+                                  <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${
                                     line.sleeve === 'Panjang'
                                       ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                                       : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                   }`}>
                                     Lengan {line.sleeve}
                                   </span>
-                                </td>
-                                <td className="py-2 px-2.5 text-center font-bold text-slate-900 font-mono whitespace-nowrap">
-                                  {line.quantity} Pcs
-                                </td>
-                                <td className="py-2 px-2.5 text-right font-mono text-slate-700 whitespace-nowrap text-[11px] sm:text-xs">
-                                  {formatRupiah(line.unitPrice)}
-                                </td>
-                                <td className="py-2 px-2.5 text-right font-mono font-bold text-blue-900 whitespace-nowrap text-[11px] sm:text-xs">
-                                  {formatRupiah(line.subtotal)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="bg-slate-50 border-t-2 border-slate-300 font-bold text-[11px] sm:text-xs text-slate-900">
-                              <td colSpan={3} className="py-2.5 px-2.5 text-left font-extrabold uppercase text-[9.5px] sm:text-[10px] tracking-wider text-slate-600 whitespace-nowrap">
-                                Total Item Garment
-                              </td>
-                              <td className="py-2.5 px-2.5 text-center font-black text-blue-900 font-mono whitespace-nowrap">
-                                {breakdown.totalQty} Pcs
-                              </td>
-                              <td className="py-2.5 px-2.5 text-right text-[10px] sm:text-[11px] text-slate-500 font-semibold whitespace-nowrap">
-                                Subtotal:
-                              </td>
-                              <td className="py-2.5 px-2.5 text-right font-black text-blue-900 font-mono whitespace-nowrap text-[11px] sm:text-xs">
-                                {formatRupiah(breakdown.subtotal)}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-50 rounded-lg p-2.5 grid grid-cols-3 gap-2 text-center border border-slate-100">
+                            <div>
+                              <span className="text-[9.5px] text-slate-400 block font-medium">Jumlah</span>
+                              <span className="font-mono font-bold text-xs text-slate-800">{line.quantity} Pcs</span>
+                            </div>
+                            <div>
+                              <span className="text-[9.5px] text-slate-400 block font-medium">Harga Satuan</span>
+                              <span className="font-mono font-semibold text-[11px] text-slate-700">{formatRupiah(line.unitPrice)}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9.5px] text-slate-400 block font-medium">Subtotal</span>
+                              <span className="font-mono font-bold text-xs text-blue-900">{formatRupiah(line.subtotal)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Mobile Total Footer */}
+                      <div className="bg-slate-900 text-white rounded-xl p-3.5 flex items-center justify-between shadow-xs">
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-bold">Total Garment</span>
+                          <span className="font-mono font-extrabold text-sm">{breakdown.totalQty} Pcs</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-bold">Subtotal Produk</span>
+                          <span className="font-mono font-black text-base text-amber-300">{formatRupiah(breakdown.subtotal)}</span>
+                        </div>
                       </div>
                     </div>
 
+                    {/* Tablet & Desktop View: Spacious Full-Width Table (>= sm) */}
+                    <div className="hidden sm:block border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white w-full">
+                      <table className="w-full text-left border-collapse table-auto">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 text-xs uppercase font-extrabold tracking-wider border-b border-slate-200">
+                            <th className="py-2.5 px-3 text-center w-10">No</th>
+                            <th className="py-2.5 px-3">Item & Ukuran</th>
+                            <th className="py-2.5 px-3 text-center w-32">Tipe Lengan</th>
+                            <th className="py-2.5 px-3 text-center w-24">Jumlah</th>
+                            <th className="py-2.5 px-3 text-right w-32">Harga Satuan</th>
+                            <th className="py-2.5 px-3 text-right w-36">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs">
+                          {breakdown.lines.map((line, idx) => (
+                            <tr key={line.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-3 text-center text-slate-400 font-mono text-xs align-middle">{idx + 1}</td>
+                              <td className="py-3 px-3 font-semibold text-slate-800 align-middle">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-900">{line.name}</span>
+                                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-900 border border-blue-200">
+                                    {line.size}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-center align-middle">
+                                <span className={`inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
+                                  line.sleeve === 'Panjang'
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}>
+                                  Lengan {line.sleeve}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center font-bold text-slate-900 font-mono whitespace-nowrap align-middle">
+                                {line.quantity} <span className="text-[10px] text-slate-500 font-normal">Pcs</span>
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-slate-700 whitespace-nowrap text-xs align-middle">
+                                {formatRupiah(line.unitPrice)}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono font-bold text-blue-900 whitespace-nowrap text-xs align-middle">
+                                {formatRupiah(line.subtotal)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50 border-t-2 border-slate-300 font-bold text-xs text-slate-900">
+                            <td colSpan={3} className="py-3 px-3 text-left font-extrabold uppercase text-[10px] tracking-wider text-slate-600">
+                              Total Item Garment
+                            </td>
+                            <td className="py-3 px-3 text-center font-black text-blue-900 font-mono whitespace-nowrap">
+                              {breakdown.totalQty} <span className="text-[10px] font-normal">Pcs</span>
+                            </td>
+                            <td className="py-3 px-3 text-right text-xs text-slate-500 font-semibold whitespace-nowrap">
+                              Subtotal:
+                            </td>
+                            <td className="py-3 px-3 text-right font-black text-blue-900 font-mono whitespace-nowrap text-sm">
+                              {formatRupiah(breakdown.subtotal)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
                     {order.customSizingDetails && (
-                      <div className="text-[10px] text-blue-800 bg-blue-50/70 border border-blue-200/60 px-2.5 py-1.5 rounded-lg">
-                        <strong className="font-bold text-blue-900">Catatan Detail Sizing:</strong> {order.customSizingDetails}
+                      <div className="text-xs text-blue-800 bg-blue-50/70 border border-blue-200/60 p-3 rounded-xl leading-relaxed">
+                        <strong className="font-bold text-blue-900 block mb-0.5">Catatan Detail Sizing:</strong>
+                        <p className="break-words">{order.customSizingDetails}</p>
                       </div>
                     )}
                   </div>
@@ -718,9 +780,9 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
               })()}
 
               {order.notes && (
-                <div className="mt-4 border-t border-slate-50 pt-3">
+                <div className="mt-4 border-t border-slate-100 pt-3">
                   <span className="text-xs text-slate-400 block font-medium mb-1">Catatan Tambahan:</span>
-                  <p className="text-xs text-slate-600 bg-amber-50/50 p-3 rounded-lg border border-amber-100 italic">
+                  <p className="text-xs text-slate-600 bg-amber-50/50 p-3 rounded-lg border border-amber-100 italic break-words leading-relaxed">
                     "{order.notes}"
                   </p>
                 </div>
