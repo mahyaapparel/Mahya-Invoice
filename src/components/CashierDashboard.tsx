@@ -5,11 +5,12 @@ import {
   AlertTriangle, Activity, FileText, Check, MapPin, CreditCard, Scissors, Sparkles, SlidersHorizontal, X, Settings, Upload,
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
   Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered, Receipt,
-  Image as ImageIcon
+  Image as ImageIcon, Loader2, Sparkle
 } from 'lucide-react';
 import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord, FinanceTransaction } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
 import { sendInvoicePaymentWebhook } from '../utils/webhook';
+import { compressImageFile, CompressionResult } from '../utils/imageCompressor';
 import InvoiceDetailModal from './InvoiceDetailModal';
 import ReceiptModal from './ReceiptModal';
 import { useAuth } from '../context/AuthContext';
@@ -281,23 +282,26 @@ export default function CashierDashboard() {
   });
 
   const [isDraggingDesign, setIsDraggingDesign] = useState<boolean>(false);
+  const [isCompressingDesign, setIsCompressingDesign] = useState<boolean>(false);
+  const [designCompressionStats, setDesignCompressionStats] = useState<CompressionResult | null>(null);
 
-  const handleDesignImageUpload = (file: File) => {
+  const handleDesignImageUpload = async (file: File) => {
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      alert('Ukuran file terlalu besar! Maksimal 4MB agar foto desain tersimpan optimal.');
-      return;
+    try {
+      setIsCompressingDesign(true);
+      // Kompresi otomatis file gambar agar maksimal 1MB
+      const result = await compressImageFile(file, 1.0, 1920);
+      setDesignCompressionStats(result);
+      setFormData(prev => ({
+        ...prev,
+        designImageUrl: result.base64
+      }));
+    } catch (err) {
+      console.error('Gagal memproses gambar:', err);
+      alert('Gagal memproses dan mengompres file gambar. Pastikan format gambar valid (JPG, PNG, WEBP).');
+    } finally {
+      setIsCompressingDesign(false);
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setFormData(prev => ({
-          ...prev,
-          designImageUrl: event.target?.result as string
-        }));
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   // Invoice Settings state drafts & saving helpers
@@ -310,25 +314,20 @@ export default function CashierDashboard() {
   const [isDraggingLogo, setIsDraggingLogo] = useState<boolean>(false);
   const [isDraggingQris, setIsDraggingQris] = useState<boolean>(false);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !settingsDraft) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file terlalu besar! Maksimal 2MB agar penyimpanan optimal.');
-      return;
+    try {
+      const result = await compressImageFile(file, 0.8, 1200);
+      setSettingsDraft({
+        ...settingsDraft,
+        logoUrl: result.base64
+      });
+    } catch (err) {
+      console.error('Gagal mengompres logo:', err);
+      alert('Gagal memproses logo bisnis.');
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result && settingsDraft) {
-        setSettingsDraft({
-          ...settingsDraft,
-          logoUrl: event.target.result as string
-        });
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleLogoDragOver = (e: React.DragEvent) => {
@@ -340,48 +339,38 @@ export default function CashierDashboard() {
     setIsDraggingLogo(false);
   };
 
-  const handleLogoDrop = (e: React.DragEvent) => {
+  const handleLogoDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingLogo(false);
     const file = e.dataTransfer.files?.[0];
-    if (!file) return;
+    if (!file || !settingsDraft) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file terlalu besar! Maksimal 2MB agar penyimpanan optimal.');
-      return;
+    try {
+      const result = await compressImageFile(file, 0.8, 1200);
+      setSettingsDraft({
+        ...settingsDraft,
+        logoUrl: result.base64
+      });
+    } catch (err) {
+      console.error('Gagal mengompres logo:', err);
+      alert('Gagal memproses logo bisnis.');
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result && settingsDraft) {
-        setSettingsDraft({
-          ...settingsDraft,
-          logoUrl: event.target.result as string
-        });
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
-  const handleQrisUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQrisUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !settingsDraft) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file QRIS terlalu besar! Maksimal 2MB.');
-      return;
+    try {
+      const result = await compressImageFile(file, 0.8, 1200);
+      setSettingsDraft({
+        ...settingsDraft,
+        qrisUrl: result.base64
+      });
+    } catch (err) {
+      console.error('Gagal mengompres QRIS:', err);
+      alert('Gagal memproses QRIS.');
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result && settingsDraft) {
-        setSettingsDraft({
-          ...settingsDraft,
-          qrisUrl: event.target.result as string
-        });
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleQrisDragOver = (e: React.DragEvent) => {
@@ -393,27 +382,22 @@ export default function CashierDashboard() {
     setIsDraggingQris(false);
   };
 
-  const handleQrisDrop = (e: React.DragEvent) => {
+  const handleQrisDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingQris(false);
     const file = e.dataTransfer.files?.[0];
-    if (!file) return;
+    if (!file || !settingsDraft) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file QRIS terlalu besar! Maksimal 2MB.');
-      return;
+    try {
+      const result = await compressImageFile(file, 0.8, 1200);
+      setSettingsDraft({
+        ...settingsDraft,
+        qrisUrl: result.base64
+      });
+    } catch (err) {
+      console.error('Gagal mengompres QRIS:', err);
+      alert('Gagal memproses QRIS.');
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result && settingsDraft) {
-        setSettingsDraft({
-          ...settingsDraft,
-          qrisUrl: event.target.result as string
-        });
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   useEffect(() => {
@@ -2801,14 +2785,18 @@ export default function CashierDashboard() {
                     <ImageIcon size={14} />
                     <span>Gambar & Mockup Desain Pesanan</span>
                   </h3>
-                  <span className="text-[11px] text-slate-400 font-medium">Opsional (Dapat diunggah sekarang atau nanti)</span>
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 flex items-center gap-1">
+                    <Sparkles size={11} />
+                    Auto-Kompres Maks. 1MB
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                   {/* Upload / Drag-and-drop Area */}
                   <div>
-                    <label className="text-xs font-bold text-slate-600 block mb-1.5">
-                      Unggah File Desain / Foto Mockup
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5 flex items-center justify-between">
+                      <span>Unggah File Desain / Foto Mockup</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Otomatis dioptimalkan &lt; 1MB</span>
                     </label>
                     <div
                       onDragOver={(e) => {
@@ -2826,7 +2814,13 @@ export default function CashierDashboard() {
                         isDraggingDesign ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300 hover:border-slate-400'
                       }`}
                     >
-                      {formData.designImageUrl ? (
+                      {isCompressingDesign ? (
+                        <div className="py-6 flex flex-col items-center justify-center space-y-2">
+                          <Loader2 size={24} className="animate-spin text-blue-600" />
+                          <p className="text-xs font-bold text-blue-700">Mengompres & Mengoptimalkan Gambar...</p>
+                          <p className="text-[11px] text-slate-500">Menyesuaikan resolusi agar maksimal 1MB tanpa pecah</p>
+                        </div>
+                      ) : formData.designImageUrl ? (
                         <div className="space-y-2.5">
                           <div className="relative mx-auto w-full max-h-48 bg-slate-900/5 rounded-lg overflow-hidden flex items-center justify-center p-2">
                             <img
@@ -2837,17 +2831,34 @@ export default function CashierDashboard() {
                             />
                             <button
                               type="button"
-                              onClick={() => setFormData({ ...formData, designImageUrl: '' })}
+                              onClick={() => {
+                                setFormData({ ...formData, designImageUrl: '' });
+                                setDesignCompressionStats(null);
+                              }}
                               className="absolute top-2 right-2 bg-rose-600 text-white p-1 rounded-full hover:bg-rose-700 shadow transition-colors cursor-pointer"
                               title="Hapus gambar desain"
                             >
                               <X size={14} />
                             </button>
                           </div>
-                          <p className="text-[11px] text-emerald-600 font-bold flex items-center justify-center gap-1">
-                            <CheckCircle2 size={13} />
-                            Gambar Desain Terlampir
-                          </p>
+                          
+                          {/* Compression Info Badge */}
+                          {designCompressionStats ? (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-[11px] text-emerald-800 flex items-center justify-between">
+                              <span className="font-bold flex items-center gap-1">
+                                <CheckCircle2 size={13} className="text-emerald-600" />
+                                Terkompres Optimal ({designCompressionStats.compressedSizeFormatted})
+                              </span>
+                              <span className="text-emerald-700 font-semibold">
+                                Hemat {designCompressionStats.savedPercent}% (Asli: {designCompressionStats.originalSizeFormatted})
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-emerald-600 font-bold flex items-center justify-center gap-1">
+                              <CheckCircle2 size={13} />
+                              Gambar Desain Siap Digunakan
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -2870,7 +2881,9 @@ export default function CashierDashboard() {
                             </label>
                             <span className="block text-[11px] text-slate-400 mt-0.5">atau seret (drag & drop) file ke sini</span>
                           </div>
-                          <p className="text-[10px] text-slate-400">Format JPG, PNG, WEBP (Maksimal 4MB)</p>
+                          <p className="text-[10px] text-slate-400">
+                            JPG, PNG, WEBP • Otomatis dikompres &lt; 1MB
+                          </p>
                         </div>
                       )}
                     </div>

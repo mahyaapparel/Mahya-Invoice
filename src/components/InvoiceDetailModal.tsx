@@ -7,6 +7,7 @@ import mahyaLogo from '../assets/images/mahya_logo_1784646837491.jpg';
 import html2pdf from 'html2pdf.js';
 import { saveOrderToFirestore, saveTransactionToFirestore, deleteTransactionFromFirestore, syncOrderTransactionsToFirestore } from '../services/firestoreService';
 import { sendInvoicePaymentWebhook } from '../utils/webhook';
+import { compressImageFile } from '../utils/imageCompressor';
 import ReceiptModal from './ReceiptModal';
 
 const defaultInvoiceSettings: InvoiceSettings = {
@@ -47,32 +48,22 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
     const file = e.target.files?.[0];
     if (!file || !order) return;
 
-    if (file.size > 4 * 1024 * 1024) {
-      alert('Ukuran file terlalu besar! Maksimal 4MB agar foto desain tersimpan dengan baik.');
-      return;
-    }
-
     try {
       setIsUploadingDesign(true);
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        if (event.target?.result) {
-          const base64Data = event.target.result as string;
-          const updatedOrder: ConvectionOrder = {
-            ...order,
-            designImageUrl: base64Data
-          };
-          await saveOrderToFirestore(updatedOrder);
-          if (onUpdateOrder) {
-            onUpdateOrder(updatedOrder);
-          }
-          setIsUploadingDesign(false);
-        }
+      // Kompresi otomatis gambar agar maksimal 1MB
+      const result = await compressImageFile(file, 1.0, 1920);
+      const updatedOrder: ConvectionOrder = {
+        ...order,
+        designImageUrl: result.base64
       };
-      reader.readAsDataURL(file);
+      await saveOrderToFirestore(updatedOrder);
+      if (onUpdateOrder) {
+        onUpdateOrder(updatedOrder);
+      }
     } catch (err) {
-      console.error("Gagal mengunggah gambar desain:", err);
-      alert("Gagal mengunggah gambar desain.");
+      console.error("Gagal mengunggah dan mengompres gambar desain:", err);
+      alert("Gagal memproses dan mengompres gambar desain.");
+    } finally {
       setIsUploadingDesign(false);
     }
   };
