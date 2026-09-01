@@ -633,70 +633,72 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
                 </div>
 
                 {/* Detailed Itemized Rows Table */}
-                <div className="border border-slate-200/90 rounded-xl overflow-hidden print:border-slate-300 shadow-sm">
-                  <table className="w-full text-left border-collapse table-auto">
-                    <thead>
-                      <tr className="bg-slate-100 text-slate-700 text-[11px] font-bold border-b border-slate-200/90 print:bg-slate-100">
-                        <th className="px-3 py-2 text-center w-10">No</th>
-                        <th className="px-3 py-2">Deskripsi Item & Ukuran</th>
-                        <th className="px-3 py-2 text-center whitespace-nowrap">Tipe Lengan</th>
-                        <th className="px-3 py-2 text-right whitespace-nowrap">Jumlah (Qty)</th>
-                        <th className="px-3 py-2 text-right whitespace-nowrap">Harga Satuan</th>
-                        <th className="px-3 py-2 text-right whitespace-nowrap">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700 bg-white">
-                      {breakdown.lines.map((line, idx) => (
-                        <tr key={line.id || idx} className="hover:bg-slate-50/60">
-                          <td className="px-3 py-2 text-center text-slate-400 font-mono text-[11px] align-middle">
-                            {idx + 1}
+                <div className="border border-slate-200/90 rounded-xl overflow-hidden print:border-slate-300 shadow-sm bg-white">
+                  <div className="overflow-x-auto max-w-full touch-pan-x scrollbar-thin">
+                    <table className="w-full text-left border-collapse table-auto min-w-[500px]">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-700 text-[10px] sm:text-[11px] font-bold border-b border-slate-200/90 print:bg-slate-100">
+                          <th className="px-2.5 sm:px-3 py-2 text-center w-8 whitespace-nowrap">No</th>
+                          <th className="px-2.5 sm:px-3 py-2 whitespace-nowrap">Deskripsi Item & Ukuran</th>
+                          <th className="px-2.5 sm:px-3 py-2 text-center whitespace-nowrap">Tipe Lengan</th>
+                          <th className="px-2.5 sm:px-3 py-2 text-right whitespace-nowrap">Jumlah (Qty)</th>
+                          <th className="px-2.5 sm:px-3 py-2 text-right whitespace-nowrap">Harga Satuan</th>
+                          <th className="px-2.5 sm:px-3 py-2 text-right whitespace-nowrap">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-[11px] sm:text-xs text-slate-700 bg-white">
+                        {breakdown.lines.map((line, idx) => (
+                          <tr key={line.id || idx} className="hover:bg-slate-50/60">
+                            <td className="px-2.5 sm:px-3 py-2 text-center text-slate-400 font-mono text-[10px] sm:text-[11px] align-middle">
+                              {idx + 1}
+                            </td>
+                            <td className="px-2.5 sm:px-3 py-2 font-medium text-slate-800 align-middle">
+                              <div className="font-bold text-slate-800">{line.name}</div>
+                              <div className="text-[9.5px] sm:text-[10px] text-slate-400 font-normal">
+                                Ukuran: {line.size} • {order.fabricType}
+                              </div>
+                            </td>
+                            <td className="px-2.5 sm:px-3 py-2 text-center align-middle whitespace-nowrap">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold ${
+                                  line.sleeve === 'Panjang'
+                                    ? 'bg-indigo-100/80 text-indigo-800 border border-indigo-200'
+                                    : line.sleeve === 'Pendek'
+                                    ? 'bg-emerald-100/80 text-emerald-800 border border-emerald-200'
+                                    : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                }`}
+                              >
+                                {line.sleeve}
+                              </span>
+                            </td>
+                            <td className="px-2.5 sm:px-3 py-2 text-right font-mono font-bold text-slate-800 align-middle whitespace-nowrap">
+                              {line.quantity} pcs
+                            </td>
+                            <td className="px-2.5 sm:px-3 py-2 text-right font-mono font-semibold text-slate-700 align-middle whitespace-nowrap">
+                              {formatRupiah(line.unitPrice)}
+                            </td>
+                            <td className="px-2.5 sm:px-3 py-2 text-right font-mono font-bold text-slate-900 align-middle whitespace-nowrap">
+                              {formatRupiah(line.subtotal)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-slate-50 font-semibold text-[11px] sm:text-xs text-slate-800 border-t-2 border-slate-200 print:bg-slate-50">
+                        <tr>
+                          <td colSpan={3} className="px-2.5 sm:px-3 py-2 text-right font-bold text-slate-700 uppercase text-[9.5px] sm:text-[10px] whitespace-nowrap">
+                            Total Pcs & Subtotal Garment
                           </td>
-                          <td className="px-3 py-2 font-medium text-slate-800 align-middle">
-                            <div className="font-bold text-slate-800">{line.name}</div>
-                            <div className="text-[10px] text-slate-400 font-normal">
-                              Ukuran: {line.size} • {order.fabricType}
-                            </div>
+                          <td className="px-2.5 sm:px-3 py-2 text-right font-mono font-extrabold text-blue-900 whitespace-nowrap">
+                            {breakdown.totalQty} pcs
                           </td>
-                          <td className="px-3 py-2 text-center align-middle">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                line.sleeve === 'Panjang'
-                                  ? 'bg-indigo-100/80 text-indigo-800 border border-indigo-200'
-                                  : line.sleeve === 'Pendek'
-                                  ? 'bg-emerald-100/80 text-emerald-800 border border-emerald-200'
-                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
-                              }`}
-                            >
-                              {line.sleeve}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-slate-800 align-middle whitespace-nowrap">
-                            {line.quantity} pcs
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono font-semibold text-slate-700 align-middle whitespace-nowrap">
-                            {formatRupiah(line.unitPrice)}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-slate-900 align-middle whitespace-nowrap">
-                            {formatRupiah(line.subtotal)}
+                          <td className="px-2.5 sm:px-3 py-2"></td>
+                          <td className="px-2.5 sm:px-3 py-2 text-right font-mono font-extrabold text-slate-950 whitespace-nowrap">
+                            {formatRupiah(computedSubtotal)}
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-slate-50 font-semibold text-xs text-slate-800 border-t-2 border-slate-200 print:bg-slate-50">
-                      <tr>
-                        <td colSpan={3} className="px-3 py-2 text-right font-bold text-slate-700 uppercase text-[10px]">
-                          Total Pcs & Subtotal Garment
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono font-extrabold text-blue-900 whitespace-nowrap">
-                          {breakdown.totalQty} pcs
-                        </td>
-                        <td className="px-3 py-2"></td>
-                        <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-950 whitespace-nowrap">
-                          {formatRupiah(computedSubtotal)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
 
                 {order.customSizingDetails && (

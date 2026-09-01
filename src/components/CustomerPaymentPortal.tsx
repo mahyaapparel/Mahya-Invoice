@@ -630,69 +630,71 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                       </div>
                     )}
 
-                    {/* Detailed Itemized Rows Table */}
-                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                      <table className="w-full text-left border-collapse table-auto">
-                        <thead>
-                          <tr className="bg-slate-100 text-slate-700 text-[10px] uppercase font-extrabold tracking-wider border-b border-slate-200">
-                            <th className="py-2.5 px-3 text-center w-10">No</th>
-                            <th className="py-2.5 px-3">Deskripsi Item & Ukuran</th>
-                            <th className="py-2.5 px-3">Tipe Lengan</th>
-                            <th className="py-2.5 px-3 text-center w-24">Jumlah (Qty)</th>
-                            <th className="py-2.5 px-3 text-right w-28">Harga Satuan</th>
-                            <th className="py-2.5 px-3 text-right w-32">Subtotal</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-xs">
-                          {breakdown.lines.map((line, idx) => (
-                            <tr key={line.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                              <td className="py-2.5 px-3 font-bold text-slate-800">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span>{line.name}</span>
-                                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-100/90 text-blue-900 border border-blue-200">
-                                    {line.size}
+                    {/* Detailed Itemized Rows Table with horizontal scroll support and compact typography */}
+                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
+                      <div className="overflow-x-auto max-w-full touch-pan-x scrollbar-thin">
+                        <table className="w-full text-left border-collapse table-auto min-w-[540px]">
+                          <thead>
+                            <tr className="bg-slate-100 text-slate-700 text-[9.5px] sm:text-[10px] uppercase font-extrabold tracking-wider border-b border-slate-200">
+                              <th className="py-2 px-2.5 text-center w-8 whitespace-nowrap">No</th>
+                              <th className="py-2 px-2.5 whitespace-nowrap">Deskripsi Item & Ukuran</th>
+                              <th className="py-2 px-2.5 text-center whitespace-nowrap">Tipe Lengan</th>
+                              <th className="py-2 px-2.5 text-center whitespace-nowrap w-20">Jumlah (Qty)</th>
+                              <th className="py-2 px-2.5 text-right whitespace-nowrap w-24">Harga Satuan</th>
+                              <th className="py-2 px-2.5 text-right whitespace-nowrap w-28">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-[11px] sm:text-xs">
+                            {breakdown.lines.map((line, idx) => (
+                              <tr key={line.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-2 px-2.5 text-center text-slate-400 font-mono text-[10px] sm:text-[11px]">{idx + 1}</td>
+                                <td className="py-2 px-2.5 font-bold text-slate-800">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>{line.name}</span>
+                                    <span className="inline-block px-1.5 py-0.5 rounded text-[9.5px] sm:text-[10px] font-extrabold bg-blue-100/90 text-blue-900 border border-blue-200">
+                                      {line.size}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-2.5 text-center whitespace-nowrap">
+                                  <span className={`inline-block text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                                    line.sleeve === 'Panjang'
+                                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  }`}>
+                                    Lengan {line.sleeve}
                                   </span>
-                                </div>
+                                </td>
+                                <td className="py-2 px-2.5 text-center font-bold text-slate-900 font-mono whitespace-nowrap">
+                                  {line.quantity} Pcs
+                                </td>
+                                <td className="py-2 px-2.5 text-right font-mono text-slate-700 whitespace-nowrap text-[11px] sm:text-xs">
+                                  {formatRupiah(line.unitPrice)}
+                                </td>
+                                <td className="py-2 px-2.5 text-right font-mono font-bold text-blue-900 whitespace-nowrap text-[11px] sm:text-xs">
+                                  {formatRupiah(line.subtotal)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-slate-50 border-t-2 border-slate-300 font-bold text-[11px] sm:text-xs text-slate-900">
+                              <td colSpan={3} className="py-2.5 px-2.5 text-left font-extrabold uppercase text-[9.5px] sm:text-[10px] tracking-wider text-slate-600 whitespace-nowrap">
+                                Total Item Garment
                               </td>
-                              <td className="py-2.5 px-3">
-                                <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                                  line.sleeve === 'Panjang'
-                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                }`}>
-                                  Lengan {line.sleeve}
-                                </span>
+                              <td className="py-2.5 px-2.5 text-center font-black text-blue-900 font-mono whitespace-nowrap">
+                                {breakdown.totalQty} Pcs
                               </td>
-                              <td className="py-2.5 px-3 text-center font-bold text-slate-900 font-mono">
-                                {line.quantity} Pcs
+                              <td className="py-2.5 px-2.5 text-right text-[10px] sm:text-[11px] text-slate-500 font-semibold whitespace-nowrap">
+                                Subtotal:
                               </td>
-                              <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                                {formatRupiah(line.unitPrice)}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-900">
-                                {formatRupiah(line.subtotal)}
+                              <td className="py-2.5 px-2.5 text-right font-black text-blue-900 font-mono whitespace-nowrap text-[11px] sm:text-xs">
+                                {formatRupiah(breakdown.subtotal)}
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-slate-50 border-t-2 border-slate-300 font-bold text-xs text-slate-900">
-                            <td colSpan={3} className="py-2.5 px-3 text-left font-extrabold uppercase text-[10px] tracking-wider text-slate-600">
-                              Total Item Garment
-                            </td>
-                            <td className="py-2.5 px-3 text-center font-black text-blue-900 font-mono">
-                              {breakdown.totalQty} Pcs
-                            </td>
-                            <td className="py-2.5 px-3 text-right text-[11px] text-slate-500 font-semibold">
-                              Subtotal:
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-black text-blue-900 font-mono">
-                              {formatRupiah(breakdown.subtotal)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                          </tfoot>
+                        </table>
+                      </div>
                     </div>
 
                     {order.customSizingDetails && (
