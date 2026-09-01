@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, AlertCircle, ShieldCheck, CreditCard, 
   ArrowRight, Phone, Clock, MessageSquare, Copy, Check,
-  Scissors, Hammer, Activity, Compass, Package, Send, Sparkles, LogIn,
+  Scissors, Hammer, Activity, Compass, Package, Send, Sparkles,
   Printer, Download, Loader2, User, Mail, MapPin, Calendar, Building,
   Image as ImageIcon, ZoomIn, Eye, Trash2, X, Maximize2, FileText
 } from 'lucide-react';
@@ -226,16 +226,6 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
               <Phone size={16} />
               Hubungi CS {activeSettings.businessName}
             </a>
-            {onBackToCashier && (
-              <button 
-                onClick={onBackToCashier}
-                className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                id="btn-back-to-cashier-error"
-              >
-                <LogIn size={16} />
-                Kembali ke Kasir
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -415,16 +405,6 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
             <Printer size={13} />
             <span>Cetak</span>
           </button>
-          {onBackToCashier && (
-            <button
-              onClick={onBackToCashier}
-              className="text-[11px] sm:text-xs font-semibold text-slate-600 hover:text-blue-600 px-2 sm:px-2.5 py-1.5 rounded-lg hover:bg-slate-100 bg-slate-50 sm:bg-transparent transition-all flex items-center gap-1 cursor-pointer"
-              id="btn-back-to-cashier-header"
-            >
-              <LogIn size={13} />
-              <span>Kasir Panel</span>
-            </button>
-          )}
           <a
             href={`https://wa.me/${activeSettings.phone.replace(/[^0-9]/g, '')}?text=Halo+${encodeURIComponent(activeSettings.businessName)},+saya+ingin+tanya+mengenai+invoice+${order.invoiceNumber}`}
             target="_blank"
