@@ -4,7 +4,8 @@ import {
   TrendingUp, User, Phone, ExternalLink, Copy, Trash2, Edit3, 
   AlertTriangle, Activity, FileText, Check, MapPin, CreditCard, Scissors, Sparkles, SlidersHorizontal, X, Settings, Upload,
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
-  Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered, Receipt
+  Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered, Receipt,
+  Image as ImageIcon
 } from 'lucide-react';
 import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord, FinanceTransaction } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
@@ -274,8 +275,30 @@ export default function CashierDashboard() {
     paymentMethod: 'CASH',
     paymentReference: 'Kasir Tunai',
     notes: '',
+    designImageUrl: '',
+    designNotes: '',
     deadline: ''
   });
+
+  const [isDraggingDesign, setIsDraggingDesign] = useState<boolean>(false);
+
+  const handleDesignImageUpload = (file: File) => {
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Ukuran file terlalu besar! Maksimal 4MB agar foto desain tersimpan optimal.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setFormData(prev => ({
+          ...prev,
+          designImageUrl: event.target?.result as string
+        }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Invoice Settings state drafts & saving helpers
   const [settingsDraft, setSettingsDraft] = useState<InvoiceSettings | null>(null);
@@ -898,6 +921,8 @@ export default function CashierDashboard() {
       paymentMethod: 'CASH',
       paymentReference: 'Kasir Tunai',
       notes: '',
+      designImageUrl: '',
+      designNotes: '',
       deadline: ''
     });
   };
@@ -946,6 +971,8 @@ export default function CashierDashboard() {
       paymentMethod: 'CASH',
       paymentReference: 'Kasir Tunai',
       notes: order.notes || '',
+      designImageUrl: order.designImageUrl || '',
+      designNotes: order.designNotes || '',
       deadline: order.deadline ? order.deadline.split('T')[0] : ''
     });
     setShowAddForm(true);
@@ -1113,6 +1140,8 @@ export default function CashierDashboard() {
         paymentStatus: newPayStatus,
         productionStatus: isEdit ? editingOrder.productionStatus : 'ANTREAN',
         notes: formData.notes || '',
+        designImageUrl: formData.designImageUrl || '',
+        designNotes: formData.designNotes || '',
         createdAt: isEdit ? editingOrder.createdAt : new Date().toISOString(),
         deadline: formData.deadline || '',
         paymentHistory: finalPaymentHistory
@@ -1843,19 +1872,33 @@ export default function CashierDashboard() {
 
                       {/* Convection Details */}
                       <td className="px-6 py-4">
-                        <span className="font-bold text-slate-800 block">
-                          {order.productType}
-                        </span>
-                        <span className="text-xs text-slate-500 mt-1 block">
-                          {order.fabricType} • {order.fabricColor}
-                        </span>
-                        <div className="flex items-center gap-1 mt-1 flex-wrap">
-                          <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100/50 px-1.5 py-0.5 rounded font-medium inline-block">
-                            {order.sablonBordir}
-                          </span>
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100/50 px-1.5 py-0.5 rounded font-semibold inline-block">
-                            {order.division || 'Konveksi'}
-                          </span>
+                        <div className="flex items-start gap-2.5">
+                          {order.designImageUrl && (
+                            <img
+                              src={order.designImageUrl}
+                              alt="Mockup"
+                              className="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0 bg-slate-50 cursor-pointer hover:opacity-80 transition-opacity shadow-sm"
+                              onClick={() => setSelectedInvoice(order)}
+                              title="Klik untuk lihat invoice & foto desain"
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
+                          <div>
+                            <span className="font-bold text-slate-800 block">
+                              {order.productType}
+                            </span>
+                            <span className="text-xs text-slate-500 mt-0.5 block">
+                              {order.fabricType} • {order.fabricColor}
+                            </span>
+                            <div className="flex items-center gap-1 mt-1 flex-wrap">
+                              <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100/50 px-1.5 py-0.5 rounded font-medium inline-block">
+                                {order.sablonBordir}
+                              </span>
+                              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100/50 px-1.5 py-0.5 rounded font-semibold inline-block">
+                                {order.division || 'Konveksi'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </td>
 
@@ -2751,31 +2794,147 @@ export default function CashierDashboard() {
                 </div>
               </div>
 
-              {/* Row 5: Notes & Deadline */}
+              {/* Row 5: Foto Desain & Mockup Pesanan */}
               <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-4">
-                <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide">Catatan & Batas Waktu</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                  <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide flex items-center gap-1.5">
+                    <ImageIcon size={14} />
+                    <span>Gambar & Mockup Desain Pesanan</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-400 font-medium">Opsional (Dapat diunggah sekarang atau nanti)</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                  {/* Upload / Drag-and-drop Area */}
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">Batas Waktu (Deadline)*</label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.deadline}
-                      onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm cursor-pointer"
-                      id="input-form-deadline"
-                    />
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">
+                      Unggah File Desain / Foto Mockup
+                    </label>
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDraggingDesign(true);
+                      }}
+                      onDragLeave={() => setIsDraggingDesign(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDraggingDesign(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) handleDesignImageUpload(file);
+                      }}
+                      className={`border-2 border-dashed rounded-xl p-3.5 text-center transition-colors bg-white ${
+                        isDraggingDesign ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      {formData.designImageUrl ? (
+                        <div className="space-y-2.5">
+                          <div className="relative mx-auto w-full max-h-48 bg-slate-900/5 rounded-lg overflow-hidden flex items-center justify-center p-2">
+                            <img
+                              src={formData.designImageUrl}
+                              alt="Preview Desain"
+                              className="max-h-40 object-contain rounded"
+                              referrerPolicy="no-referrer"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setFormData({ ...formData, designImageUrl: '' })}
+                              className="absolute top-2 right-2 bg-rose-600 text-white p-1 rounded-full hover:bg-rose-700 shadow transition-colors cursor-pointer"
+                              title="Hapus gambar desain"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-emerald-600 font-bold flex items-center justify-center gap-1">
+                            <CheckCircle2 size={13} />
+                            Gambar Desain Terlampir
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="w-9 h-9 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+                            <Upload size={16} />
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            <label className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer underline">
+                              Pilih file gambar desain
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleDesignImageUpload(file);
+                                }}
+                                className="hidden"
+                                id="input-form-design-file"
+                              />
+                            </label>
+                            <span className="block text-[11px] text-slate-400 mt-0.5">atau seret (drag & drop) file ke sini</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400">Format JPG, PNG, WEBP (Maksimal 4MB)</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Or URL input */}
+                    <div className="mt-2">
+                      <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+                        Atau masukkan Link URL Gambar:
+                      </label>
+                      <input
+                        type="url"
+                        value={formData.designImageUrl?.startsWith('data:') ? '' : formData.designImageUrl}
+                        onChange={(e) => setFormData({ ...formData, designImageUrl: e.target.value })}
+                        placeholder="https://..."
+                        className="w-full bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-blue-500 text-xs font-mono"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">Catatan Tambahan Desain & Posisi Sablon</label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm h-12"
-                      placeholder="Tulis instruksi khusus detail sablon..."
-                      id="input-form-notes"
-                    />
+
+                  {/* Notes & Position */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">
+                        Catatan Posisi & Ukuran Sablon/Bordir
+                      </label>
+                      <textarea
+                        value={formData.designNotes}
+                        onChange={(e) => setFormData({ ...formData, designNotes: e.target.value })}
+                        className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-xs font-medium h-20 resize-none"
+                        placeholder="Contoh: Sablon depan dada A3, bordir logo lengan kanan 8x8 cm, sablon punggung teks 25 cm..."
+                        id="input-form-design-notes"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Tampil di lembar invoice pelanggan & rincian kerja produksi.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">Catatan Tambahan Umum / Order</label>
+                      <textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-xs h-16 resize-none"
+                        placeholder="Tulis instruksi khusus pengerjaan lainnya..."
+                        id="input-form-notes"
+                      />
+                    </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Row 6: Notes & Deadline */}
+              <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-4">
+                <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide">Batas Waktu Pengerjaan</h3>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Batas Waktu Selesai (Deadline)*</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.deadline}
+                    onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                    className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm cursor-pointer font-bold text-slate-800"
+                    id="input-form-deadline"
+                  />
                 </div>
               </div>
 

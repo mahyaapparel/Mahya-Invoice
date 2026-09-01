@@ -77,6 +77,8 @@ export interface ConvectionOrder {
   productionStatus: ProductionStatus;
   
   notes: string;
+  designImageUrl?: string; // URL / Base64 foto desain mockup produk yang dipesan
+  designNotes?: string;    // Catatan detail posisi/ukuran desain
   createdAt: string;
   deadline: string;
   paymentHistory: PaymentRecord[];

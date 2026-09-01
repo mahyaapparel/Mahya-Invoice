@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Printer, Copy, Check, Calendar, Phone, Mail, MapPin, DollarSign, Download, Loader2, ExternalLink, CreditCard, Edit3, Trash2, Save, Receipt } from 'lucide-react';
+import { X, Printer, Copy, Check, Calendar, Phone, Mail, MapPin, DollarSign, Download, Loader2, ExternalLink, CreditCard, Edit3, Trash2, Save, Receipt, Image as ImageIcon, ZoomIn, Maximize2, Upload } from 'lucide-react';
 import { ConvectionOrder, InvoiceSettings, PaymentRecord, PaymentStatus } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
 import { exportElementToPdf } from '../utils/pdfSanitizer';
@@ -39,7 +39,43 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
   const [copied, setCopied] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showDesignModal, setShowDesignModal] = useState(false);
+  const [isUploadingDesign, setIsUploadingDesign] = useState(false);
   const activeSettings = settings || defaultInvoiceSettings;
+
+  const handleDesignUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !order) return;
+
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Ukuran file terlalu besar! Maksimal 4MB agar foto desain tersimpan dengan baik.');
+      return;
+    }
+
+    try {
+      setIsUploadingDesign(true);
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        if (event.target?.result) {
+          const base64Data = event.target.result as string;
+          const updatedOrder: ConvectionOrder = {
+            ...order,
+            designImageUrl: base64Data
+          };
+          await saveOrderToFirestore(updatedOrder);
+          if (onUpdateOrder) {
+            onUpdateOrder(updatedOrder);
+          }
+          setIsUploadingDesign(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Gagal mengunggah gambar desain:", err);
+      alert("Gagal mengunggah gambar desain.");
+      setIsUploadingDesign(false);
+    }
+  };
 
   // State for Editing Payment Record
   const [editingPayId, setEditingPayId] = useState<string | null>(null);
@@ -425,7 +461,7 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
           </div>
 
           {/* Product Specifications */}
-          <div className="py-4 print:py-3">
+          <div className="py-4 print:py-2">
             <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Spesifikasi Produksi Konveksi</span>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80 print:bg-slate-50 print:border-slate-200">
               <div>
@@ -446,6 +482,91 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
               </div>
             </div>
           </div>
+
+          {/* Design Mockup Section (Mockup / Foto Desain Pesanan) */}
+          {order.designImageUrl ? (
+            <div className="py-3 print:py-2 border-b border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1.5">
+                  <ImageIcon size={13} className="text-blue-600 print:hidden" />
+                  Lampiran Desain & Mockup Pesanan
+                </span>
+                <div className="print:hidden flex items-center gap-2">
+                  <button
+                    onClick={() => setShowDesignModal(true)}
+                    className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    <ZoomIn size={12} />
+                    <span>Zoom Desain</span>
+                  </button>
+                  <label className="text-[11px] font-bold text-slate-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors">
+                    <Upload size={12} />
+                    <span>{isUploadingDesign ? 'Menyimpan...' : 'Ganti Foto'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleDesignUpload}
+                      disabled={isUploadingDesign}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3.5 items-start bg-slate-50/80 p-3 rounded-xl border border-slate-200/80 print:bg-white print:border-slate-300">
+                <div 
+                  onClick={() => setShowDesignModal(true)}
+                  className="cursor-pointer group relative w-full sm:w-44 h-32 bg-white rounded-lg border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 print:border-slate-300 print:h-24 print:w-32"
+                >
+                  <img
+                    src={order.designImageUrl}
+                    alt="Mockup Desain"
+                    className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="print:hidden absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[10px] font-bold text-white bg-slate-900/80 px-2 py-0.5 rounded-md">Zoom</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-1.5 text-xs">
+                  <div>
+                    <span className="text-slate-400 text-[10px] font-bold uppercase block">Spesifikasi Aplikasi:</span>
+                    <p className="font-bold text-slate-800">{order.productType} • {order.sablonBordir || 'Sablon/Bordir'}</p>
+                  </div>
+                  {order.designNotes && (
+                    <div className="bg-amber-50 border border-amber-200/80 p-2 rounded-lg text-amber-950">
+                      <span className="font-bold text-[10px] text-amber-900 block">Catatan Posisi & Dimensi Desain:</span>
+                      <p className="text-[11px] leading-snug">{order.designNotes}</p>
+                    </div>
+                  )}
+                  {order.fabricType && (
+                    <p className="text-slate-500 text-[11px]">
+                      Kain: <span className="font-semibold text-slate-700">{order.fabricType} ({order.fabricColor || 'Standar'})</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-2.5 print:hidden border-b border-slate-100 flex items-center justify-between bg-slate-50/50 p-2.5 rounded-xl border border-dashed border-slate-200 text-xs">
+              <div className="flex items-center gap-2 text-slate-500">
+                <ImageIcon size={16} className="text-slate-400" />
+                <span>Belum ada foto desain terlampir</span>
+              </div>
+              <label className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer bg-blue-50 px-2.5 py-1 rounded-lg">
+                <Upload size={12} />
+                <span>{isUploadingDesign ? 'Menyimpan...' : 'Upload Foto Desain'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleDesignUpload}
+                  disabled={isUploadingDesign}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          )}
 
           {/* Order items Table */}
           <div className="mt-1">
@@ -1129,6 +1250,83 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
           onClose={() => setShowReceiptModal(false)}
           settings={settings}
         />
+      )}
+
+      {/* Lightbox / Zoom Modal for Design Image */}
+      {showDesignModal && order?.designImageUrl && (
+        <div 
+          className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => setShowDesignModal(false)}
+        >
+          <div 
+            className="relative max-w-4xl w-full max-h-[92vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col border border-slate-800 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-1.5 bg-blue-600/20 text-blue-400 rounded-lg shrink-0">
+                  <ImageIcon size={18} />
+                </div>
+                <div className="truncate">
+                  <h3 className="text-sm font-bold text-white truncate">
+                    Preview Desain: {order.productType}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    No. Invoice #{order.invoiceNumber} • {order.customerName}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={order.designImageUrl}
+                  download={`Desain_${order.invoiceNumber?.replace(/[\/\\]/g, '_') || 'Mockup'}.jpg`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5"
+                  title="Unduh Desain"
+                >
+                  <Download size={14} />
+                  <span className="hidden sm:inline">Unduh</span>
+                </a>
+                <button
+                  onClick={() => setShowDesignModal(false)}
+                  className="p-1.5 bg-slate-800 hover:bg-rose-600 text-white rounded-lg transition-colors cursor-pointer"
+                  title="Tutup"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Image View */}
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-950/60 min-h-[260px]">
+              <img
+                src={order.designImageUrl}
+                alt="Preview Desain Garment"
+                className="max-w-full max-h-[68vh] object-contain rounded-lg shadow-xl border border-slate-800"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-950 text-xs text-slate-300 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span>
+                  <strong className="text-slate-400">Model:</strong> {order.productType}
+                </span>
+                <span>
+                  <strong className="text-slate-400">Aplikasi:</strong> {order.sablonBordir || '-'}
+                </span>
+              </div>
+              {order.designNotes && (
+                <div className="text-amber-300 font-medium">
+                  <strong className="text-amber-400">Catatan:</strong> {order.designNotes}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
