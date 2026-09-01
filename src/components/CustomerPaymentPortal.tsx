@@ -366,57 +366,59 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
     <div className="min-h-screen bg-slate-50 pb-16 print:bg-white print:pb-0">
       
       {/* Floating Header - Hidden in Print */}
-      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100 px-6 py-4 flex justify-between items-center print:hidden">
-        <div className="flex items-center gap-3">
+      <header className="bg-white/90 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4 print:hidden">
+        <div className="flex items-center gap-3 w-full sm:w-auto shrink-0 min-w-0">
           <img 
             src={activeSettings.logoUrl || mahyaLogo} 
             alt={`${activeSettings.businessName} Logo`} 
-            className="w-9 h-9 object-contain rounded-lg border border-slate-100 bg-white shadow-sm"
+            className="w-9 h-9 object-contain rounded-lg border border-slate-100 bg-white shadow-sm shrink-0"
             referrerPolicy="no-referrer"
           />
-          <div>
-            <h1 className="text-sm font-bold text-slate-800 leading-none">{activeSettings.businessName}</h1>
-            <p className="text-[10px] text-slate-500">Invoice Customer Portal</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-sm font-bold text-slate-800 leading-none truncate">{activeSettings.businessName}</h1>
+            <p className="text-[10px] text-slate-500 truncate">Invoice Customer Portal</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        
+        {/* Action Buttons: Positioned on next line on mobile so they never cover the logo */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full sm:w-auto justify-start sm:justify-end border-t border-slate-100 pt-2 sm:border-0 sm:pt-0">
           <button
             onClick={handleDownloadPDF}
             disabled={isExportingPDF}
-            className="flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50 shadow-sm"
+            className="flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold cursor-pointer disabled:opacity-50 shadow-sm"
             id="btn-customer-download-pdf"
             title="Unduh Invoice PDF"
           >
             {isExportingPDF ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-            {isExportingPDF ? 'Proses...' : 'Unduh PDF'}
+            <span>{isExportingPDF ? 'Proses...' : 'Unduh PDF'}</span>
           </button>
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1 bg-blue-600 text-white hover:bg-blue-700 transition-colors px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer shadow-sm"
+            className="flex items-center gap-1 bg-blue-600 text-white hover:bg-blue-700 transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold cursor-pointer shadow-sm"
             id="btn-customer-print-invoice"
             title="Cetak Invoice"
           >
             <Printer size={13} />
-            Cetak
+            <span>Cetak</span>
           </button>
           {onBackToCashier && (
             <button
               onClick={onBackToCashier}
-              className="text-xs font-semibold text-slate-500 hover:text-blue-600 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-all flex items-center gap-1 cursor-pointer"
+              className="text-[11px] sm:text-xs font-semibold text-slate-600 hover:text-blue-600 px-2 sm:px-2.5 py-1.5 rounded-lg hover:bg-slate-100 bg-slate-50 sm:bg-transparent transition-all flex items-center gap-1 cursor-pointer"
               id="btn-back-to-cashier-header"
             >
               <LogIn size={13} />
-              Kasir Panel
+              <span>Kasir Panel</span>
             </button>
           )}
           <a
             href={`https://wa.me/${activeSettings.phone.replace(/[^0-9]/g, '')}?text=Halo+${encodeURIComponent(activeSettings.businessName)},+saya+ingin+tanya+mengenai+invoice+${order.invoiceNumber}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer"
+            className="flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold cursor-pointer"
           >
             <Phone size={13} />
-            Hubungi Kasir
+            <span>Hubungi Kasir</span>
           </a>
         </div>
       </header>
