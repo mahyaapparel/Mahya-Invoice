@@ -31,7 +31,7 @@ export default function ReceiptModal({ order, onClose, settings, initialMode = '
 
   const invNumber = order.invoiceNumber || order.id || 'INV-000';
   const division = order.division || 'Konveksi';
-  const dateFormatted = order.createdAt ? formatIndonesianDate(order.createdAt) : formatIndonesianDate(new Date().toISOString());
+  const dateFormatted = formatIndonesianDate(order.orderDate || order.createdAt || new Date().toISOString());
   
   // Calculate total paid & remaining
   const paymentHistory = order.paymentHistory || [];

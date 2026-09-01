@@ -456,7 +456,7 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
             <div className="bg-sky-50/80 p-3.5 rounded-xl border border-sky-200/80 space-y-2 h-fit print:bg-sky-50 print:border-sky-200">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-600 font-medium flex items-center gap-1.5"><Calendar size={13} className="text-blue-600" /> Tanggal Masuk</span>
-                <span className="font-bold text-slate-800">{formatIndonesianDate(order.createdAt)}</span>
+                <span className="font-bold text-slate-800">{formatIndonesianDate(order.orderDate || order.createdAt)}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-slate-600 font-medium flex items-center gap-1.5"><Calendar size={13} className="text-rose-500" /> Deadline Selesai</span>

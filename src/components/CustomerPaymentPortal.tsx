@@ -895,7 +895,7 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50 text-[11px]">
                 <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Tgl Order</span>
-                  <span className="font-bold text-slate-800">{formatIndonesianDate(order.orderDate)}</span>
+                  <span className="font-bold text-slate-800">{formatIndonesianDate(order.orderDate || order.createdAt)}</span>
                 </div>
                 <div className="bg-rose-50/50 p-2 rounded-lg border border-rose-100/50">
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Target Deadline</span>

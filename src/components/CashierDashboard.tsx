@@ -278,6 +278,7 @@ export default function CashierDashboard() {
     notes: '',
     designImageUrl: '',
     designNotes: '',
+    orderDate: new Date().toISOString().split('T')[0],
     deadline: ''
   });
 
@@ -907,6 +908,7 @@ export default function CashierDashboard() {
       notes: '',
       designImageUrl: '',
       designNotes: '',
+      orderDate: new Date().toISOString().split('T')[0],
       deadline: ''
     });
   };
@@ -957,6 +959,7 @@ export default function CashierDashboard() {
       notes: order.notes || '',
       designImageUrl: order.designImageUrl || '',
       designNotes: order.designNotes || '',
+      orderDate: order.orderDate ? order.orderDate.split('T')[0] : (order.createdAt ? order.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
       deadline: order.deadline ? order.deadline.split('T')[0] : ''
     });
     setShowAddForm(true);
@@ -1127,6 +1130,7 @@ export default function CashierDashboard() {
         designImageUrl: formData.designImageUrl || '',
         designNotes: formData.designNotes || '',
         createdAt: isEdit ? editingOrder.createdAt : new Date().toISOString(),
+        orderDate: formData.orderDate || (isEdit && editingOrder.orderDate ? editingOrder.orderDate : new Date().toISOString().split('T')[0]),
         deadline: formData.deadline || '',
         paymentHistory: finalPaymentHistory
       };
@@ -2935,19 +2939,38 @@ export default function CashierDashboard() {
                 </div>
               </div>
 
-              {/* Row 6: Notes & Deadline */}
+              {/* Row 6: Tanggal Order & Deadline */}
               <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-4">
-                <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide">Batas Waktu Pengerjaan</h3>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">Batas Waktu Selesai (Deadline)*</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.deadline}
-                    onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                    className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm cursor-pointer font-bold text-slate-800"
-                    id="input-form-deadline"
-                  />
+                <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide">Jadwal & Batas Waktu Pengerjaan</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">
+                      Tanggal Order (Otomatis Hari Ini)*
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.orderDate || new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setFormData({ ...formData, orderDate: e.target.value })}
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm cursor-pointer font-bold text-slate-800"
+                      id="input-form-order-date"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">Terisi otomatis saat order diinput</span>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">
+                      Batas Waktu Selesai (Deadline)*
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.deadline}
+                      onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm cursor-pointer font-bold text-slate-800"
+                      id="input-form-deadline"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">Target pesanan selesai & dikirim</span>
+                  </div>
                 </div>
               </div>
 
