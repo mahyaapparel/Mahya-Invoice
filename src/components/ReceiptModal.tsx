@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Printer, Copy, Check, Send, Receipt } from 'lucide-react';
 import { ConvectionOrder, InvoiceSettings } from '../types';
 import { formatRupiah, formatIndonesianDate } from '../utils/format';
+import { calculateOrderBreakdown } from '../utils/orderBreakdown';
 
 interface ReceiptModalProps {
   order: ConvectionOrder;
@@ -37,6 +38,7 @@ export default function ReceiptModal({ order, onClose, settings }: ReceiptModalP
 
   // Format WhatsApp Text Receipt
   const generateWhatsAppText = () => {
+    const breakdown = calculateOrderBreakdown(order);
     let text = `*STRUK NOTA PEMBAYARAN - ${activeSettings.businessName.toUpperCase()}*\n`;
     text += `------------------------------------------\n`;
     text += `No. Invoice : #${invNumber}\n`;
@@ -44,17 +46,20 @@ export default function ReceiptModal({ order, onClose, settings }: ReceiptModalP
     text += `Divisi      : ${division}\n`;
     text += `Pelanggan   : ${order.customerName} (${order.customerPhone || '-'})\n`;
     text += `------------------------------------------\n`;
-    text += `*DETAIL PESANAN:*\n`;
-    text += `• ${order.productType || 'Garment'} (${order.quantity} Pcs)\n`;
+    text += `*DETAIL SPESIFIKASI:*\n`;
+    text += `• Produk: ${order.productType || 'Garment'}\n`;
     if (order.fabricType || order.fabricColor) {
       text += `  Kain: ${order.fabricType || '-'} (${order.fabricColor || '-'})\n`;
     }
     if (order.sablonBordir) {
       text += `  Aplikasi: ${order.sablonBordir}\n`;
     }
-    if (order.unitPrice > 0) {
-      text += `  Harga/Pcs: ${formatRupiah(order.unitPrice)}\n`;
-    }
+
+    text += `\n*RINCIAN ITEM & UKURAN:*\n`;
+    breakdown.lines.forEach((line) => {
+      text += `• ${line.size} (${line.sleeve}): ${line.quantity} pcs x ${formatRupiah(line.unitPrice)} = ${formatRupiah(line.subtotal)}\n`;
+    });
+    text += `  Total Qty: ${breakdown.totalQty} pcs\n`;
 
     if (order.shippingCost > 0) {
       text += `• Biaya Pengiriman: ${formatRupiah(order.shippingCost)}\n`;
@@ -262,55 +267,66 @@ export default function ReceiptModal({ order, onClose, settings }: ReceiptModalP
               )}
             </div>
 
-            {/* Product Details */}
-            <div className="py-2.5 border-b border-dashed border-slate-400 text-[11px] space-y-2">
-              <div>
-                <div className="font-bold text-slate-900 uppercase">
-                  {order.productType || 'Pakaian Custom'}
-                </div>
-                <div className="text-[10px] text-slate-600">
-                  {order.quantity} Pcs {order.unitPrice > 0 ? `x ${formatRupiah(order.unitPrice)}` : ''}
-                </div>
-                {order.fabricType && (
-                  <div className="text-[10px] text-slate-600">
-                    Kain: {order.fabricType} ({order.fabricColor || '-'})
+            {/* Product & Item Breakdown Details */}
+            {(() => {
+              const breakdown = calculateOrderBreakdown(order);
+              return (
+                <div className="py-2.5 border-b border-dashed border-slate-400 text-[11px] space-y-2">
+                  <div>
+                    <div className="font-bold text-slate-900 uppercase">
+                      {order.productType || 'Pakaian Custom'}
+                    </div>
+                    {order.fabricType && (
+                      <div className="text-[10px] text-slate-600">
+                        Kain: {order.fabricType} ({order.fabricColor || '-'})
+                      </div>
+                    )}
+                    {order.sablonBordir && (
+                      <div className="text-[10px] text-slate-600">
+                        Aplikasi: {order.sablonBordir}
+                      </div>
+                    )}
                   </div>
-                )}
-                {order.sablonBordir && (
-                  <div className="text-[10px] text-slate-600">
-                    Aplikasi: {order.sablonBordir}
-                  </div>
-                )}
-                
-                {/* Size breakdown */}
-                {(order.sizeS > 0 || order.sizeM > 0 || order.sizeL > 0 || order.sizeXL > 0 || order.sizeXXL > 0 || order.sizeCustom) && (
-                  <div className="text-[10px] text-slate-600 font-semibold mt-0.5">
-                    Ukuran: {[
-                      order.sizeS > 0 ? `S:${order.sizeS}` : '',
-                      order.sizeM > 0 ? `M:${order.sizeM}` : '',
-                      order.sizeL > 0 ? `L:${order.sizeL}` : '',
-                      order.sizeXL > 0 ? `XL:${order.sizeXL}` : '',
-                      order.sizeXXL > 0 ? `2XL:${order.sizeXXL}` : '',
-                      order.sizeCustom ? `Custom: ${order.sizeCustom}` : ''
-                    ].filter(Boolean).join(' | ')}
-                  </div>
-                )}
-              </div>
 
-              {/* Additional Fees / Discount */}
-              {order.shippingCost > 0 && (
-                <div className="flex justify-between text-[10px]">
-                  <span>Ongkos Kirim:</span>
-                  <span className="font-semibold">{formatRupiah(order.shippingCost)}</span>
+                  {/* Itemized lines per size & sleeve */}
+                  <div className="pt-1 border-t border-dotted border-slate-300 space-y-1">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase flex justify-between tracking-wider">
+                      <span>Item / Ukuran</span>
+                      <span>Subtotal</span>
+                    </div>
+                    {breakdown.lines.map((line, idx) => (
+                      <div key={line.id || idx} className="text-[10px]">
+                        <div className="font-bold text-slate-900 flex justify-between">
+                          <span>{line.size} ({line.sleeve})</span>
+                          <span className="font-mono">{formatRupiah(line.subtotal)}</span>
+                        </div>
+                        <div className="text-slate-500 text-[9px] font-mono">
+                          {line.quantity} pcs x {formatRupiah(line.unitPrice)}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-bold text-slate-900 text-[10px] pt-1 border-t border-dotted border-slate-300">
+                      <span>Total Qty Item:</span>
+                      <span className="font-mono">{breakdown.totalQty} pcs</span>
+                    </div>
+                  </div>
+
+                  {/* Additional Fees / Discount */}
+                  {order.shippingCost > 0 && (
+                    <div className="flex justify-between text-[10px] pt-1 border-t border-dotted border-slate-200">
+                      <span>Ongkos Kirim:</span>
+                      <span className="font-semibold">{formatRupiah(order.shippingCost)}</span>
+                    </div>
+                  )}
+                  {order.discount > 0 && (
+                    <div className="flex justify-between text-[10px]">
+                      <span>Diskon:</span>
+                      <span className="font-semibold text-rose-700">-{formatRupiah(order.discount)}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-              {order.discount > 0 && (
-                <div className="flex justify-between text-[10px]">
-                  <span>Diskon:</span>
-                  <span className="font-semibold text-rose-700">-{formatRupiah(order.discount)}</span>
-                </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Financial Summary */}
             <div className="py-2.5 border-b border-dashed border-slate-400 text-[11px] space-y-1">
