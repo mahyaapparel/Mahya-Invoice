@@ -4,7 +4,7 @@ import {
   ArrowRight, Phone, Clock, MessageSquare, Copy, Check,
   Scissors, Hammer, Activity, Compass, Package, Send, Sparkles, LogIn,
   Printer, Download, Loader2, User, Mail, MapPin, Calendar, Building,
-  Image as ImageIcon, ZoomIn, Eye, Trash2, X, Maximize2
+  Image as ImageIcon, ZoomIn, Eye, Trash2, X, Maximize2, FileText
 } from 'lucide-react';
 import { ConvectionOrder, PaymentRecord, InvoiceSettings } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails } from '../utils/format';
@@ -14,6 +14,7 @@ import { exportElementToPdf } from '../utils/pdfSanitizer';
 import { fetchOrderFromFirestore, fetchSettingsFromFirestore, saveOrderToFirestore } from '../services/firestoreService';
 import mahyaLogo from '../assets/images/mahya_logo_1784646837491.jpg';
 import html2pdf from 'html2pdf.js';
+import ReceiptModal from './ReceiptModal';
 
 const defaultInvoiceSettings: InvoiceSettings = {
   businessName: "MAHYA APPAREL",
@@ -54,6 +55,7 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
   const [copiedText, setCopiedText] = useState<boolean>(false);
   const [isExportingPDF, setIsExportingPDF] = useState<boolean>(false);
   const [showDesignModal, setShowDesignModal] = useState<boolean>(false);
+  const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
 
   const activeSettings = settings || defaultInvoiceSettings;
 
@@ -385,6 +387,15 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
         
         {/* Action Buttons: Positioned on next line on mobile so they never cover the logo */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full sm:w-auto justify-start sm:justify-end border-t border-slate-100 pt-2 sm:border-0 sm:pt-0">
+          <button
+            onClick={() => setShowReceiptModal(true)}
+            className="flex items-center gap-1 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold cursor-pointer shadow-sm"
+            id="btn-customer-print-nota"
+            title="Cetak Nota Pesanan (Kop & Logo)"
+          >
+            <FileText size={13} />
+            <span>Cetak Nota</span>
+          </button>
           <button
             onClick={handleDownloadPDF}
             disabled={isExportingPDF}
@@ -1265,6 +1276,14 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
             </div>
           </div>
         </div>
+      )}
+      {showReceiptModal && (
+        <ReceiptModal
+          order={order}
+          onClose={() => setShowReceiptModal(false)}
+          settings={activeSettings}
+          initialMode="nota"
+        />
       )}
     </div>
   );

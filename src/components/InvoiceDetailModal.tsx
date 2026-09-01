@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Printer, Copy, Check, Calendar, Phone, Mail, MapPin, DollarSign, Download, Loader2, ExternalLink, CreditCard, Edit3, Trash2, Save, Receipt, Image as ImageIcon, ZoomIn, Maximize2, Upload } from 'lucide-react';
+import { X, Printer, Copy, Check, Calendar, Phone, Mail, MapPin, DollarSign, Download, Loader2, ExternalLink, CreditCard, Edit3, Trash2, Save, Receipt, Image as ImageIcon, ZoomIn, Maximize2, Upload, FileText } from 'lucide-react';
 import { ConvectionOrder, InvoiceSettings, PaymentRecord, PaymentStatus } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
 import { exportElementToPdf } from '../utils/pdfSanitizer';
@@ -41,6 +41,7 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
   const [copied, setCopied] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptModalMode, setReceiptModalMode] = useState<'nota' | 'struk'>('nota');
   const [showDesignModal, setShowDesignModal] = useState(false);
   const [isUploadingDesign, setIsUploadingDesign] = useState(false);
   const activeSettings = settings || defaultInvoiceSettings;
@@ -310,10 +311,26 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
             </button>
 
             <button
-              onClick={() => setShowReceiptModal(true)}
+              onClick={() => {
+                setReceiptModalMode('nota');
+                setShowReceiptModal(true);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm cursor-pointer"
+              id="btn-open-nota-modal"
+              title="Cetak Nota Pesanan dengan Kop & Logo Bisnis"
+            >
+              <FileText size={15} />
+              Cetak Nota
+            </button>
+
+            <button
+              onClick={() => {
+                setReceiptModalMode('struk');
+                setShowReceiptModal(true);
+              }}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all shadow-sm cursor-pointer"
               id="btn-open-receipt-modal"
-              title="Cetak Struk Nota Kasir (Format Thermal POS 58mm/80mm)"
+              title="Cetak Struk Kasir (Format Thermal POS 58mm/80mm)"
             >
               <Receipt size={15} />
               Cetak Struk
@@ -1037,6 +1054,7 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
           order={order}
           onClose={() => setShowReceiptModal(false)}
           settings={settings}
+          initialMode={receiptModalMode}
         />
       )}
 

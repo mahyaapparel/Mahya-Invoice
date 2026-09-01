@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { X, Printer, Copy, Check, Send, Receipt } from 'lucide-react';
+import { X, Printer, Copy, Check, Send, Receipt, FileText, Image as ImageIcon } from 'lucide-react';
 import { ConvectionOrder, InvoiceSettings } from '../types';
 import { formatRupiah, formatIndonesianDate } from '../utils/format';
 import { calculateOrderBreakdown } from '../utils/orderBreakdown';
+import mahyaLogo from '../assets/images/mahya_logo_1784646837491.jpg';
 
 interface ReceiptModalProps {
   order: ConvectionOrder;
   onClose: () => void;
   settings?: InvoiceSettings | null;
+  initialMode?: 'nota' | 'struk';
 }
 
 const defaultInvoiceSettings: InvoiceSettings = {
@@ -21,8 +23,9 @@ const defaultInvoiceSettings: InvoiceSettings = {
   additionalNotes: "Terima kasih atas kepercayaan Anda!"
 };
 
-export default function ReceiptModal({ order, onClose, settings }: ReceiptModalProps) {
-  const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm'>('58mm');
+export default function ReceiptModal({ order, onClose, settings, initialMode = 'nota' }: ReceiptModalProps) {
+  const [receiptMode, setReceiptMode] = useState<'nota' | 'struk'>(initialMode);
+  const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm' | '100mm'>(initialMode === 'nota' ? '80mm' : '58mm');
   const [copied, setCopied] = useState(false);
   const activeSettings = settings || defaultInvoiceSettings;
 
@@ -39,9 +42,10 @@ export default function ReceiptModal({ order, onClose, settings }: ReceiptModalP
   // Format WhatsApp Text Receipt
   const generateWhatsAppText = () => {
     const breakdown = calculateOrderBreakdown(order);
-    let text = `*STRUK NOTA PEMBAYARAN - ${activeSettings.businessName.toUpperCase()}*\n`;
+    const headerTitle = receiptMode === 'nota' ? 'NOTA PESANAN & PEMBAYARAN' : 'STRUK NOTA PEMBAYARAN';
+    let text = `*${headerTitle} - ${activeSettings.businessName.toUpperCase()}*\n`;
     text += `------------------------------------------\n`;
-    text += `No. Invoice : #${invNumber}\n`;
+    text += `No. Nota    : #${invNumber}\n`;
     text += `Tanggal     : ${dateFormatted}\n`;
     text += `Divisi      : ${division}\n`;
     text += `Pelanggan   : ${order.customerName} (${order.customerPhone || '-'})\n`;
@@ -125,125 +129,217 @@ export default function ReceiptModal({ order, onClose, settings }: ReceiptModalP
     window.open(url, '_blank');
   };
 
-  const handlePrintThermal = () => {
+  const handlePrint = () => {
     document.body.classList.add('printing-receipt-mode');
     if (paperWidth === '58mm') {
       document.body.classList.add('paper-58mm');
-    } else {
+    } else if (paperWidth === '80mm') {
       document.body.classList.add('paper-80mm');
+    } else {
+      document.body.classList.add('paper-100mm');
     }
 
     window.print();
 
     setTimeout(() => {
-      document.body.classList.remove('printing-receipt-mode', 'paper-58mm', 'paper-80mm');
+      document.body.classList.remove('printing-receipt-mode', 'paper-58mm', 'paper-80mm', 'paper-100mm');
     }, 1000);
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[92vh] border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[94vh] border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header Modal - Hidden during print */}
-        <div className="p-4 bg-slate-800 text-white flex justify-between items-center shrink-0 print:hidden">
-          <div className="flex items-center gap-2">
-            <Receipt className="text-emerald-400" size={20} />
+        <div className="p-3.5 sm:p-4 bg-slate-900 text-white flex justify-between items-center shrink-0 print:hidden">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+              {receiptMode === 'nota' ? <FileText size={18} /> : <Receipt size={18} />}
+            </div>
             <div>
-              <h2 className="font-bold text-sm sm:text-base leading-tight">Cetak Struk Kasir / Nota</h2>
-              <p className="text-[11px] text-slate-300">Format khusus thermal printer (58mm / 80mm)</p>
+              <h2 className="font-bold text-sm sm:text-base leading-tight">
+                {receiptMode === 'nota' ? 'Cetak Nota Pesanan (Kop + Logo)' : 'Cetak Struk Kasir (Thermal POS)'}
+              </h2>
+              <p className="text-[11px] text-slate-400">
+                {receiptMode === 'nota' ? 'Nota dengan logo bisnis di samping kop & tanda tangan' : 'Format ringkas printer thermal kasir'}
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            id="btn-close-receipt-modal"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Toolbar Action Buttons - Hidden during print */}
-        <div className="p-3 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0 print:hidden text-xs">
-          {/* Paper Size Selector */}
-          <div className="flex items-center bg-white border border-slate-300 rounded-lg p-0.5 shadow-sm">
-            <button
-              onClick={() => setPaperWidth('58mm')}
-              className={`px-3 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
-                paperWidth === '58mm'
-                  ? 'bg-slate-800 text-white shadow'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              58 mm (Nota Kecil)
-            </button>
-            <button
-              onClick={() => setPaperWidth('80mm')}
-              className={`px-3 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
-                paperWidth === '80mm'
-                  ? 'bg-slate-800 text-white shadow'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              80 mm (Medium)
-            </button>
+        {/* Toolbar Controls - Hidden during print */}
+        <div className="p-3 bg-slate-100/90 border-b border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0 print:hidden text-xs">
+          {/* Format & Paper Size Selector */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Mode Switcher */}
+            <div className="flex items-center bg-white border border-slate-300 rounded-lg p-0.5 shadow-2xs">
+              <button
+                onClick={() => {
+                  setReceiptMode('nota');
+                  if (paperWidth === '58mm') setPaperWidth('80mm');
+                }}
+                className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  receiptMode === 'nota'
+                    ? 'bg-blue-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                id="btn-mode-nota"
+                title="Format Nota dengan Logo di samping Kop"
+              >
+                <FileText size={13} />
+                <span>Format Nota</span>
+              </button>
+              <button
+                onClick={() => setReceiptMode('struk')}
+                className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  receiptMode === 'struk'
+                    ? 'bg-blue-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                id="btn-mode-struk"
+                title="Format Struk Thermal Standar"
+              >
+                <Receipt size={13} />
+                <span>Format Struk</span>
+              </button>
+            </div>
+
+            {/* Paper Width Selector */}
+            <div className="flex items-center bg-white border border-slate-300 rounded-lg p-0.5 shadow-2xs">
+              <button
+                onClick={() => setPaperWidth('58mm')}
+                className={`px-2 py-1 rounded-md font-bold transition-all cursor-pointer text-[11px] ${
+                  paperWidth === '58mm'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                id="btn-width-58"
+              >
+                58mm
+              </button>
+              <button
+                onClick={() => setPaperWidth('80mm')}
+                className={`px-2 py-1 rounded-md font-bold transition-all cursor-pointer text-[11px] ${
+                  paperWidth === '80mm'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                id="btn-width-80"
+              >
+                80mm
+              </button>
+              <button
+                onClick={() => setPaperWidth('100mm')}
+                className={`px-2 py-1 rounded-md font-bold transition-all cursor-pointer text-[11px] ${
+                  paperWidth === '100mm'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                id="btn-width-100"
+              >
+                Lebar
+              </button>
+            </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
             <button
               onClick={copyTextReceipt}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-lg shadow-sm cursor-pointer"
-              title="Salin Teks Nota Struk"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-lg shadow-2xs cursor-pointer text-xs transition-colors"
+              title="Salin Teks Nota / Struk"
+              id="btn-copy-receipt-text"
             >
               {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-              <span>{copied ? 'Tersalin' : 'Salin Teks'}</span>
+              <span>{copied ? 'Tersalin' : 'Salin'}</span>
             </button>
 
             <button
               onClick={sendWhatsAppReceipt}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-sm cursor-pointer"
-              title="Kirim Nota Struk via WhatsApp"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-2xs cursor-pointer text-xs transition-colors"
+              title="Kirim Nota via WhatsApp"
+              id="btn-send-receipt-wa"
             >
               <Send size={14} />
               <span>Kirim WA</span>
             </button>
 
             <button
-              onClick={handlePrintThermal}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm cursor-pointer"
-              title="Cetak Struk Thermal lewat Printer"
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm cursor-pointer text-xs transition-colors"
+              title={`Cetak ${receiptMode === 'nota' ? 'Nota' : 'Struk'} via Printer`}
+              id="btn-print-receipt"
             >
               <Printer size={15} />
-              <span>Cetak Struk</span>
+              <span>Cetak {receiptMode === 'nota' ? 'Nota' : 'Struk'}</span>
             </button>
           </div>
         </div>
 
-        {/* Scrollable Receipt Preview Container */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-200/60 flex justify-center items-start">
+        {/* Scrollable Receipt / Nota Preview Container */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-200/70 flex justify-center items-start">
           
-          {/* Paper thermal visual simulation */}
+          {/* Printable Visual Area */}
           <div
             id="printable-thermal-receipt"
             className={`bg-white text-slate-900 shadow-md font-mono text-xs p-4 sm:p-5 mx-auto border border-slate-300 transition-all ${
-              paperWidth === '58mm' ? 'w-[280px]' : 'w-[360px]'
+              paperWidth === '58mm' ? 'w-[290px]' : paperWidth === '80mm' ? 'w-[370px]' : 'w-[450px]'
             }`}
             style={{ fontFamily: "'Courier New', Courier, monospace" }}
           >
-            {/* Header */}
-            <div className="text-center pb-3 border-b border-dashed border-slate-400">
-              <h1 className="font-bold text-sm sm:text-base uppercase tracking-tight text-slate-900">
-                {activeSettings.businessName}
-              </h1>
-              {activeSettings.slogan && (
-                <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">{activeSettings.slogan}</p>
-              )}
-              <p className="text-[10px] text-slate-600 mt-0.5">{activeSettings.address}</p>
-              <p className="text-[10px] text-slate-600">Telp: {activeSettings.phone}</p>
-              
-              <div className="mt-2 inline-block bg-slate-900 text-white px-2 py-0.5 text-[10px] font-bold rounded">
-                DIVISI: {division.toUpperCase()}
+            {/* Header / Kop */}
+            {receiptMode === 'nota' ? (
+              <div className="pb-3 border-b border-dashed border-slate-400">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={activeSettings.logoUrl || mahyaLogo}
+                    alt="Logo Bisnis"
+                    className="w-13 h-13 sm:w-15 sm:h-15 object-contain rounded-md border border-slate-200 bg-white p-0.5 shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="flex-1 text-left min-w-0">
+                    <h1 className="font-bold text-sm sm:text-base uppercase tracking-tight text-slate-900 leading-snug">
+                      {activeSettings.businessName}
+                    </h1>
+                    {activeSettings.slogan && (
+                      <p className="text-[9px] sm:text-[9.5px] text-slate-600 leading-tight line-clamp-1">{activeSettings.slogan}</p>
+                    )}
+                    <p className="text-[9px] sm:text-[9.5px] text-slate-600 leading-tight line-clamp-2 mt-0.5">{activeSettings.address}</p>
+                    <p className="text-[9px] sm:text-[9.5px] text-slate-600 leading-tight font-semibold">Telp/WA: {activeSettings.phone}</p>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex items-center justify-between pt-1.5 border-t border-dotted border-slate-300">
+                  <span className="text-[10px] font-extrabold tracking-wider uppercase text-slate-900">
+                    NOTA PESANAN & PEMBAYARAN
+                  </span>
+                  <span className="bg-slate-900 text-white px-2 py-0.5 text-[9px] font-bold rounded">
+                    DIVISI: {division.toUpperCase()}
+                  </span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-center pb-3 border-b border-dashed border-slate-400">
+                <h1 className="font-bold text-sm sm:text-base uppercase tracking-tight text-slate-900">
+                  {activeSettings.businessName}
+                </h1>
+                {activeSettings.slogan && (
+                  <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">{activeSettings.slogan}</p>
+                )}
+                <p className="text-[10px] text-slate-600 mt-0.5">{activeSettings.address}</p>
+                <p className="text-[10px] text-slate-600">Telp: {activeSettings.phone}</p>
+                
+                <div className="mt-2 inline-block bg-slate-900 text-white px-2 py-0.5 text-[10px] font-bold rounded">
+                  DIVISI: {division.toUpperCase()}
+                </div>
+              </div>
+            )}
 
             {/* Order Info */}
             <div className="py-2.5 border-b border-dashed border-slate-400 text-[11px] space-y-1">
@@ -257,7 +353,7 @@ export default function ReceiptModal({ order, onClose, settings }: ReceiptModalP
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600">Pelanggan:</span>
-                <span className="font-bold truncate max-w-[150px]">{order.customerName}</span>
+                <span className="font-bold truncate max-w-[160px]">{order.customerName}</span>
               </div>
               {order.customerPhone && (
                 <div className="flex justify-between">
@@ -378,18 +474,39 @@ export default function ReceiptModal({ order, onClose, settings }: ReceiptModalP
               </div>
             </div>
 
+            {/* Signature Block for Nota */}
+            {receiptMode === 'nota' && (
+              <div className="py-3 border-t border-dashed border-slate-400 grid grid-cols-2 text-center text-[10px] gap-2">
+                <div>
+                  <p className="text-slate-600">Penerima / Pelanggan,</p>
+                  <div className="h-10"></div>
+                  <p className="font-bold text-slate-900 border-t border-dotted border-slate-400 pt-0.5 mx-1">
+                    ({order.customerName || 'Pelanggan'})
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-600">Hormat Kami,</p>
+                  <div className="h-10"></div>
+                  <p className="font-bold text-slate-900 border-t border-dotted border-slate-400 pt-0.5 mx-1">
+                    ({activeSettings.businessName || 'Kasir'})
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Footer Notes */}
             <div className="pt-2 text-center text-[10px] text-slate-600 space-y-1 border-t border-dashed border-slate-400">
               <p className="font-semibold">{activeSettings.additionalNotes || 'Terima Kasih Atas Pesanan Anda!'}</p>
-              <p className="text-[9px] italic">Simpan struk ini sebagai bukti transaksi resmi.</p>
+              <p className="text-[9px] italic">Simpan nota/struk ini sebagai bukti transaksi resmi.</p>
             </div>
           </div>
 
         </div>
 
         {/* Footer info - Hidden during print */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 text-center text-[11px] text-slate-500 shrink-0 print:hidden">
-          Dapat dicetak menggunakan Printer Kasir Bluetooth / Thermal USB (Pos 58/80)
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 shrink-0 print:hidden px-4">
+          <span>Format didukung untuk printer Bluetooth thermal POS & Printer biasa</span>
+          <span className="font-semibold text-slate-700">Mode: {receiptMode === 'nota' ? 'Nota Resmi (Logo)' : 'Struk Kasir'}</span>
         </div>
       </div>
     </div>

@@ -70,4 +70,9 @@
     size: 80mm auto;
     margin: 0;
   }
+
+  body.printing-receipt-mode.paper-100mm @page {
+    size: 100mm auto;
+    margin: 0;
+  }
 }
