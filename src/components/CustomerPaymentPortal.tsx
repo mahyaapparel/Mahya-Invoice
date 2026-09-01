@@ -4,7 +4,7 @@ import {
   ArrowRight, Phone, Clock, MessageSquare, Copy, Check,
   Scissors, Hammer, Activity, Compass, Package, Send, Sparkles, LogIn,
   Printer, Download, Loader2, User, Mail, MapPin, Calendar, Building,
-  Image as ImageIcon, ZoomIn, Eye, Upload, Trash2, X, Maximize2
+  Image as ImageIcon, ZoomIn, Eye, Trash2, X, Maximize2
 } from 'lucide-react';
 import { ConvectionOrder, PaymentRecord, InvoiceSettings } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails } from '../utils/format';
@@ -53,41 +53,8 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
   const [copiedText, setCopiedText] = useState<boolean>(false);
   const [isExportingPDF, setIsExportingPDF] = useState<boolean>(false);
   const [showDesignModal, setShowDesignModal] = useState<boolean>(false);
-  const [isUploadingDesign, setIsUploadingDesign] = useState<boolean>(false);
 
   const activeSettings = settings || defaultInvoiceSettings;
-
-  const handleDesignUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !order) return;
-
-    if (file.size > 4 * 1024 * 1024) {
-      alert('Ukuran file terlalu besar! Maksimal 4MB agar foto desain tersimpan dengan baik.');
-      return;
-    }
-
-    try {
-      setIsUploadingDesign(true);
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        if (event.target?.result) {
-          const base64Data = event.target.result as string;
-          const updatedOrder: ConvectionOrder = {
-            ...order,
-            designImageUrl: base64Data
-          };
-          setOrder(updatedOrder);
-          await saveOrderToFirestore(updatedOrder);
-          setIsUploadingDesign(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      console.error("Gagal mengunggah gambar desain:", err);
-      alert("Gagal mengunggah gambar desain. Silakan coba lagi.");
-      setIsUploadingDesign(false);
-    }
-  };
 
   // Fetch the invoice and settings
   const fetchInvoiceAndSettings = async () => {
@@ -597,46 +564,17 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                     <p className="text-amber-950 font-medium leading-relaxed">{order.designNotes}</p>
                   </div>
                 )}
-
-                {/* Re-upload or replace button */}
-                <div className="flex justify-end pt-1">
-                  <label className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 flex items-center gap-1 cursor-pointer">
-                    <Upload size={12} />
-                    <span>{isUploadingDesign ? 'Memperbarui...' : 'Ganti / Update Foto Desain'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDesignUpload}
-                      disabled={isUploadingDesign}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
               </div>
             ) : (
-              /* If no design image uploaded yet */
-              <div className="rounded-xl border-2 border-dashed border-slate-200 p-6 text-center bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                <div className="w-12 h-12 mx-auto bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-3">
-                  <ImageIcon size={24} />
+              /* If no design image uploaded yet by admin */
+              <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center bg-slate-50/50">
+                <div className="w-12 h-12 mx-auto bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-3">
+                  <ImageIcon size={22} />
                 </div>
-                <h4 className="text-sm font-bold text-slate-700">Belum Ada File Desain / Mockup Terlampir</h4>
+                <h4 className="text-sm font-bold text-slate-700">Mockup Desain Belum Dilampirkan</h4>
                 <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                  Anda atau admin kasir dapat melampirkan foto desain, lembar mockup persetujuan sablon/bordir untuk pesanan ini.
+                  File preview dan lembar approval desain pesanan akan dilampirkan oleh admin/tim konveksi.
                 </p>
-
-                <div className="mt-4 flex justify-center">
-                  <label className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer">
-                    <Upload size={14} />
-                    <span>{isUploadingDesign ? 'Menyimpan...' : 'Upload Foto Desain'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDesignUpload}
-                      disabled={isUploadingDesign}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
               </div>
             )}
           </div>
