@@ -36,6 +36,28 @@ export function getEffectivePrice(addVal: number | undefined, defaultBase: numbe
   return addVal;
 }
 
+export function getSleeveRank(sleeve: string): number {
+  if (sleeve === 'Pendek') return 1;
+  if (sleeve === 'Panjang') return 2;
+  return 3;
+}
+
+export function getSizeRank(sizeStr: string): number {
+  const s = sizeStr.toUpperCase().trim();
+  if (s === 'S - XL') return 0;
+  if (s === 'XS') return 1;
+  if (s === 'S') return 2;
+  if (s === 'M') return 3;
+  if (s === 'L') return 4;
+  if (s === 'XL') return 5;
+  if (s === 'XXL' || s === '2XL') return 6;
+  if (s === 'XXXL' || s === '3XL') return 7;
+  if (s === 'XXXXL' || s === '4XL') return 8;
+  if (s === 'XXXXXL' || s === '5XL') return 9;
+  if (s === '6XL') return 10;
+  return 20;
+}
+
 export function calculateOrderBreakdown(order: ConvectionOrder): OrderBreakdownResult {
   const basePrice = Number(order.unitPrice) || 0;
 
@@ -291,6 +313,22 @@ export function calculateOrderBreakdown(order: ConvectionOrder): OrderBreakdownR
       }
     });
   }
+
+  // Sort item lines: 1st by Sleeve (Panjang first, then Pendek, then Custom/Other), 2nd by Size (XS, S, M, L, XL, XXL, etc.)
+  lines.sort((a, b) => {
+    const sleeveDiff = getSleeveRank(a.sleeve) - getSleeveRank(b.sleeve);
+    if (sleeveDiff !== 0) return sleeveDiff;
+    const sizeDiff = getSizeRank(a.size) - getSizeRank(b.size);
+    if (sizeDiff !== 0) return sizeDiff;
+    return a.name.localeCompare(b.name, undefined, { numeric: true });
+  });
+
+  // Sort price variant badges: Panjang first, then Pendek
+  pricePerVariant.sort((a, b) => {
+    const sleeveDiff = getSleeveRank(a.sleeve) - getSleeveRank(b.sleeve);
+    if (sleeveDiff !== 0) return sleeveDiff;
+    return a.label.localeCompare(b.label);
+  });
 
   const totalQty = lines.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = lines.reduce((sum, item) => sum + item.subtotal, 0);
