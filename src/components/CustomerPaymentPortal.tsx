@@ -9,6 +9,7 @@ import {
 import { ConvectionOrder, PaymentRecord, InvoiceSettings } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails } from '../utils/format';
 import { calculateOrderBreakdown } from '../utils/orderBreakdown';
+import { ColorVariantsMatrix } from './ColorVariantsMatrix';
 import { sendInvoicePaymentWebhook } from '../utils/webhook';
 import { exportElementToPdf } from '../utils/pdfSanitizer';
 import { fetchOrderFromFirestore, fetchSettingsFromFirestore, saveOrderToFirestore } from '../services/firestoreService';
@@ -598,7 +599,14 @@ export default function CustomerPaymentPortal({ invoiceId, onPaymentSuccess, onB
                 const breakdown = calculateOrderBreakdown(order);
 
                 return (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* Tabel Matriks Varian Warna & Ukuran */}
+                    {order.colorVariants && order.colorVariants.length > 0 && (
+                      <div className="mb-4">
+                        <ColorVariantsMatrix order={order} />
+                      </div>
+                    )}
+
                     {/* Rate summary badges */}
                     {breakdown.pricePerVariant.length > 0 && (
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">

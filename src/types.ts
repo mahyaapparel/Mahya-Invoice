@@ -9,6 +9,25 @@ export type ProductionStatus =
   | 'SIAP_DIAMBIL' 
   | 'DIKIRIM';
 
+export interface ColorVariant {
+  id?: string;
+  colorName: string; // e.g. "Hitam", "Putih", "Maroon"
+  sizeS_short?: number;
+  sizeS_long?: number;
+  sizeM_short?: number;
+  sizeM_long?: number;
+  sizeL_short?: number;
+  sizeL_long?: number;
+  sizeXL_short?: number;
+  sizeXL_long?: number;
+  sizeXXL_short?: number;
+  sizeXXL_long?: number;
+  customSizes?: { name: string; short: number; long: number }[];
+  totalShort?: number;
+  totalLong?: number;
+  totalQty?: number;
+}
+
 export interface PaymentRecord {
   id: string;
   amount: number;
@@ -31,6 +50,8 @@ export interface ConvectionOrder {
   productType: string; // e.g. Kaos, Kemeja, Hoodie, Jaket, Almamater
   fabricType: string;  // e.g. Cotton Combed 30s, Fleece, American Drill
   fabricColor: string; // e.g. Hitam, Navy, Putih
+  hasMultipleColors?: boolean; // Apakah order memiliki beberapa varian warna kain
+  colorVariants?: ColorVariant[]; // Rincian per varian warna (Hitam: S:5, M:10; Putih: ...)
   sablonBordir: string; // e.g. Sablon Plastisol, Bordir Komputer
   division?: 'Konveksi' | 'Sablon' | 'Asesoris' | string; // Divisi Keuangan / Transaksi
   

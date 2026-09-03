@@ -3,6 +3,7 @@ import { X, Printer, Copy, Check, Send, Receipt, FileText, Image as ImageIcon } 
 import { ConvectionOrder, InvoiceSettings } from '../types';
 import { formatRupiah, formatIndonesianDate } from '../utils/format';
 import { calculateOrderBreakdown } from '../utils/orderBreakdown';
+import { formatColorVariantsText, getColorVariantTotals } from './ColorVariantsMatrix';
 import mahyaLogo from '../assets/images/mahya_logo_1784646837491.jpg';
 
 interface ReceiptModalProps {
@@ -64,6 +65,13 @@ export default function ReceiptModal({ order, onClose, settings, initialMode = '
       text += `• ${line.size} (${line.sleeve}): ${line.quantity} pcs x ${formatRupiah(line.unitPrice)} = ${formatRupiah(line.subtotal)}\n`;
     });
     text += `  Total Qty: ${breakdown.totalQty} pcs\n`;
+
+    if (order.colorVariants && order.colorVariants.length > 0) {
+      const colorText = formatColorVariantsText(order.colorVariants);
+      if (colorText) {
+        text += `\n*DISTRIBUSI VARIAN WARNA:*\n${colorText}`;
+      }
+    }
 
     if (order.shippingCost > 0) {
       text += `• Biaya Pengiriman: ${formatRupiah(order.shippingCost)}\n`;
@@ -405,6 +413,24 @@ export default function ReceiptModal({ order, onClose, settings, initialMode = '
                       <span>Total Qty Item:</span>
                       <span className="font-mono">{breakdown.totalQty} pcs</span>
                     </div>
+
+                    {/* Varian Warna di Struk */}
+                    {order.colorVariants && order.colorVariants.length > 0 && (
+                      <div className="pt-1 border-t border-dotted border-slate-200 text-[9px] space-y-0.5">
+                        <div className="font-bold text-slate-600 uppercase tracking-wider">
+                          Varian Warna ({order.colorVariants.length}):
+                        </div>
+                        {order.colorVariants.map((v, vIdx) => {
+                          const t = getColorVariantTotals(v);
+                          return (
+                            <div key={vIdx} className="flex justify-between text-slate-700">
+                              <span>• {v.colorName || `Warna ${vIdx + 1}`}:</span>
+                              <span className="font-mono font-medium">{t.totalQty} pcs (P:{t.totalShort}, L:{t.totalLong})</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Additional Fees / Discount */}

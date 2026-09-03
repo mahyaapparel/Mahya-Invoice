@@ -9,6 +9,7 @@ import { saveOrderToFirestore, saveTransactionToFirestore, deleteTransactionFrom
 import { sendInvoicePaymentWebhook } from '../utils/webhook';
 import { compressImageFile } from '../utils/imageCompressor';
 import { calculateOrderBreakdown } from '../utils/orderBreakdown';
+import { ColorVariantsMatrix } from './ColorVariantsMatrix';
 import ReceiptModal from './ReceiptModal';
 
 const defaultInvoiceSettings: InvoiceSettings = {
@@ -617,7 +618,14 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
               : breakdown.subtotal;
 
             return (
-              <div className="mt-2 space-y-3">
+              <div className="mt-2 space-y-4">
+                {/* Tabel Matriks Varian Warna & Ukuran (Multi-Color SPK) */}
+                {order.colorVariants && order.colorVariants.length > 0 && (
+                  <div className="mb-4">
+                    <ColorVariantsMatrix order={order} />
+                  </div>
+                )}
+
                 {/* Header title and Rate Badges */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>

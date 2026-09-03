@@ -5,14 +5,15 @@ import {
   AlertTriangle, Activity, FileText, Check, MapPin, CreditCard, Scissors, Sparkles, SlidersHorizontal, X, Settings, Upload,
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
   Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered, Receipt,
-  Image as ImageIcon, Loader2, Sparkle
+  Image as ImageIcon, Loader2, Sparkle, Palette, Layers
 } from 'lucide-react';
-import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord, FinanceTransaction } from '../types';
+import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord, FinanceTransaction, ColorVariant } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
 import { sendInvoicePaymentWebhook } from '../utils/webhook';
 import { compressImageFile, CompressionResult } from '../utils/imageCompressor';
 import InvoiceDetailModal from './InvoiceDetailModal';
 import ReceiptModal from './ReceiptModal';
+import { getColorVariantTotals } from './ColorVariantsMatrix';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
 import {
@@ -279,8 +280,236 @@ export default function CashierDashboard() {
     designImageUrl: '',
     designNotes: '',
     orderDate: new Date().toISOString().split('T')[0],
-    deadline: ''
+    deadline: '',
+    hasMultipleColors: false,
+    colorVariants: [] as ColorVariant[]
   });
+
+  // Helper sinkronisasi varian warna ke total ukuran form
+  const syncVariantsToFormData = (variants: ColorVariant[], currentCustomSizes?: { name: string; short: number; long: number }[]) => {
+    let s_short = 0, s_long = 0;
+    let m_short = 0, m_long = 0;
+    let l_short = 0, l_long = 0;
+    let xl_short = 0, xl_long = 0;
+    let xxl_short = 0, xxl_long = 0;
+
+    variants.forEach(v => {
+      s_short += Number(v.sizeS_short) || 0;
+      s_long += Number(v.sizeS_long) || 0;
+      m_short += Number(v.sizeM_short) || 0;
+      m_long += Number(v.sizeM_long) || 0;
+      l_short += Number(v.sizeL_short) || 0;
+      l_long += Number(v.sizeL_long) || 0;
+      xl_short += Number(v.sizeXL_short) || 0;
+      xl_long += Number(v.sizeXL_long) || 0;
+      xxl_short += Number(v.sizeXXL_short) || 0;
+      xxl_long += Number(v.sizeXXL_long) || 0;
+    });
+
+    // Agregasi custom sizes
+    const customTemplate = currentCustomSizes || formData.customSizes || [];
+    const aggregatedCustom = customTemplate.map(tmpl => {
+      let totShort = 0;
+      let totLong = 0;
+      variants.forEach(v => {
+        const match = (v.customSizes || []).find(cs => cs.name?.trim().toLowerCase() === tmpl.name?.trim().toLowerCase());
+        if (match) {
+          totShort += Number(match.short) || 0;
+          totLong += Number(match.long) || 0;
+        }
+      });
+      return {
+        name: tmpl.name,
+        short: totShort,
+        long: totLong
+      };
+    });
+
+    // Susun ringkasan nama-nama warna untuk display fabricColor
+    const colorNames = variants.filter(v => v.colorName?.trim()).map(v => v.colorName.trim());
+    const colorSummary = colorNames.length > 0 ? colorNames.join(', ') : 'Multi-Warna';
+
+    return {
+      sizeS_short: s_short,
+      sizeS_long: s_long,
+      sizeM_short: m_short,
+      sizeM_long: m_long,
+      sizeL_short: l_short,
+      sizeL_long: l_long,
+      sizeXL_short: xl_short,
+      sizeXL_long: xl_long,
+      sizeXXL_short: xxl_short,
+      sizeXXL_long: xxl_long,
+      customSizes: aggregatedCustom,
+      fabricColor: colorSummary,
+      colorVariants: variants
+    };
+  };
+
+  const handleToggleMultiColor = (enable: boolean) => {
+    if (enable) {
+      // Aktifkan mode multi-warna
+      const existingVariants = formData.colorVariants && formData.colorVariants.length > 0 ? formData.colorVariants : [];
+      let initialVariants: ColorVariant[];
+
+      if (existingVariants.length > 0) {
+        initialVariants = existingVariants;
+      } else {
+        const color1Name = formData.fabricColor && !formData.fabricColor.includes(',') ? formData.fabricColor : 'Hitam';
+        initialVariants = [
+          {
+            id: `col-1-${Date.now()}`,
+            colorName: color1Name,
+            sizeS_short: formData.sizeS_short || 0,
+            sizeS_long: formData.sizeS_long || 0,
+            sizeM_short: formData.sizeM_short || 0,
+            sizeM_long: formData.sizeM_long || 0,
+            sizeL_short: formData.sizeL_short || 0,
+            sizeL_long: formData.sizeL_long || 0,
+            sizeXL_short: formData.sizeXL_short || 0,
+            sizeXL_long: formData.sizeXL_long || 0,
+            sizeXXL_short: formData.sizeXXL_short || 0,
+            sizeXXL_long: formData.sizeXXL_long || 0,
+            customSizes: JSON.parse(JSON.stringify(formData.customSizes || []))
+          },
+          {
+            id: `col-2-${Date.now()}`,
+            colorName: 'Putih',
+            sizeS_short: 0,
+            sizeS_long: 0,
+            sizeM_short: 0,
+            sizeM_long: 0,
+            sizeL_short: 0,
+            sizeL_long: 0,
+            sizeXL_short: 0,
+            sizeXL_long: 0,
+            sizeXXL_short: 0,
+            sizeXXL_long: 0,
+            customSizes: (formData.customSizes || []).map(cs => ({ name: cs.name, short: 0, long: 0 }))
+          }
+        ];
+      }
+
+      const synced = syncVariantsToFormData(initialVariants);
+      setFormData(prev => ({
+        ...prev,
+        hasMultipleColors: true,
+        ...synced
+      }));
+    } else {
+      if (formData.colorVariants && formData.colorVariants.length > 1) {
+        const confirmed = window.confirm('Kembali ke mode satu warna kain? Jumlah pcs total saat ini akan tetap tersimpan.');
+        if (!confirmed) return;
+      }
+      setFormData(prev => ({
+        ...prev,
+        hasMultipleColors: false
+      }));
+    }
+  };
+
+  const handleAddColorVariant = () => {
+    const currentList = formData.colorVariants || [];
+    const colorSuggestions = ['Navy Blue', 'Maroon', 'Hijau Botol', 'Abu Misty', 'Merah Cabe', 'Kuning Mustard', 'Sage Green', 'Lilac', 'Cokelat Susu'];
+    const nextName = colorSuggestions[currentList.length % colorSuggestions.length] || `Warna ${currentList.length + 1}`;
+
+    const newVariant: ColorVariant = {
+      id: `col-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      colorName: nextName,
+      sizeS_short: 0,
+      sizeS_long: 0,
+      sizeM_short: 0,
+      sizeM_long: 0,
+      sizeL_short: 0,
+      sizeL_long: 0,
+      sizeXL_short: 0,
+      sizeXL_long: 0,
+      sizeXXL_short: 0,
+      sizeXXL_long: 0,
+      customSizes: (formData.customSizes || []).map(cs => ({ name: cs.name, short: 0, long: 0 }))
+    };
+
+    const updated = [...currentList, newVariant];
+    const synced = syncVariantsToFormData(updated);
+    setFormData(prev => ({
+      ...prev,
+      ...synced
+    }));
+  };
+
+  const handleUpdateColorVariant = (index: number, field: keyof ColorVariant, value: any) => {
+    const currentList = [...(formData.colorVariants || [])];
+    if (!currentList[index]) return;
+
+    currentList[index] = {
+      ...currentList[index],
+      [field]: value
+    };
+
+    const synced = syncVariantsToFormData(currentList);
+    setFormData(prev => ({
+      ...prev,
+      ...synced
+    }));
+  };
+
+  const handleUpdateColorVariantCustomSize = (colorIndex: number, customIndex: number, sleeve: 'short' | 'long', value: number) => {
+    const currentList = [...(formData.colorVariants || [])];
+    if (!currentList[colorIndex]) return;
+
+    const customList = [...(currentList[colorIndex].customSizes || [])];
+    if (!customList[customIndex]) return;
+
+    customList[customIndex] = {
+      ...customList[customIndex],
+      [sleeve]: Math.max(0, value)
+    };
+
+    currentList[colorIndex] = {
+      ...currentList[colorIndex],
+      customSizes: customList
+    };
+
+    const synced = syncVariantsToFormData(currentList);
+    setFormData(prev => ({
+      ...prev,
+      ...synced
+    }));
+  };
+
+  const handleDuplicateColorVariant = (sourceIndex: number) => {
+    const currentList = [...(formData.colorVariants || [])];
+    const source = currentList[sourceIndex];
+    if (!source) return;
+
+    const newVariant: ColorVariant = {
+      ...JSON.parse(JSON.stringify(source)),
+      id: `col-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      colorName: `${source.colorName} (Salinan)`
+    };
+
+    const updated = [...currentList, newVariant];
+    const synced = syncVariantsToFormData(updated);
+    setFormData(prev => ({
+      ...prev,
+      ...synced
+    }));
+  };
+
+  const handleDeleteColorVariant = (index: number) => {
+    const currentList = [...(formData.colorVariants || [])];
+    if (currentList.length <= 1) {
+      alert('Minimal harus ada 1 varian warna dalam mode multi-warna.');
+      return;
+    }
+
+    currentList.splice(index, 1);
+    const synced = syncVariantsToFormData(currentList);
+    setFormData(prev => ({
+      ...prev,
+      ...synced
+    }));
+  };
 
   const [isDraggingDesign, setIsDraggingDesign] = useState<boolean>(false);
   const [isCompressingDesign, setIsCompressingDesign] = useState<boolean>(false);
@@ -909,7 +1138,9 @@ export default function CashierDashboard() {
       designImageUrl: '',
       designNotes: '',
       orderDate: new Date().toISOString().split('T')[0],
-      deadline: ''
+      deadline: '',
+      hasMultipleColors: false,
+      colorVariants: []
     });
   };
 
@@ -960,7 +1191,9 @@ export default function CashierDashboard() {
       designImageUrl: order.designImageUrl || '',
       designNotes: order.designNotes || '',
       orderDate: order.orderDate ? order.orderDate.split('T')[0] : (order.createdAt ? order.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
-      deadline: order.deadline ? order.deadline.split('T')[0] : ''
+      deadline: order.deadline ? order.deadline.split('T')[0] : '',
+      hasMultipleColors: Boolean(order.hasMultipleColors || (order.colorVariants && order.colorVariants.length > 0)),
+      colorVariants: order.colorVariants ? JSON.parse(JSON.stringify(order.colorVariants)) : []
     });
     setShowAddForm(true);
   };
@@ -1132,7 +1365,9 @@ export default function CashierDashboard() {
         createdAt: isEdit ? editingOrder.createdAt : new Date().toISOString(),
         orderDate: formData.orderDate || (isEdit && editingOrder.orderDate ? editingOrder.orderDate : new Date().toISOString().split('T')[0]),
         deadline: formData.deadline || '',
-        paymentHistory: finalPaymentHistory
+        paymentHistory: finalPaymentHistory,
+        hasMultipleColors: Boolean(formData.hasMultipleColors),
+        colorVariants: formData.hasMultipleColors ? (formData.colorVariants || []) : []
       };
 
       await saveOrderToFirestore(fullOrderObj);
@@ -2217,15 +2452,32 @@ export default function CashierDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">Warna Kain</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-slate-500">Warna Kain</label>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMultiColor(!formData.hasMultipleColors)}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer"
+                        id="button-toggle-multi-color-quick"
+                      >
+                        <Palette size={12} />
+                        <span>{formData.hasMultipleColors ? 'Multi-Warna Aktif' : '+ Banyak Warna'}</span>
+                      </button>
+                    </div>
                     <input
                       type="text"
+                      disabled={formData.hasMultipleColors}
                       value={formData.fabricColor}
                       onChange={(e) => setFormData({ ...formData, fabricColor: e.target.value })}
-                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
+                      className={`w-full border px-3 py-2 rounded-lg text-sm ${formData.hasMultipleColors ? 'bg-slate-100 text-slate-700 cursor-not-allowed border-slate-200 font-semibold' : 'bg-white border-slate-200 focus:outline-none focus:border-blue-500'}`}
                       placeholder="Contoh: Navy Blue"
                       id="input-form-fabric-color"
                     />
+                    {formData.hasMultipleColors && (
+                      <p className="text-[10px] text-blue-600 mt-1 font-semibold">
+                        ✨ Dikelola via Matriks Multi-Warna di bawah ({formData.colorVariants?.length || 0} Warna)
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">Aplikasi Sablon/Bordir</label>
@@ -2241,83 +2493,311 @@ export default function CashierDashboard() {
                 </div>
               </div>
 
-              {/* Row 3: Distribusi Ukuran & Tipe Lengan */}
+              {/* Row 3: Distribusi Ukuran & Tipe Lengan (Mendukung Multi-Warna) */}
               <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
                   <div>
-                    <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide">
-                      Rincian Ukuran & Jenis Lengan (Pcs)
+                    <h3 className="text-xs uppercase font-extrabold text-blue-700 tracking-wide flex items-center gap-1.5">
+                      <Layers size={15} />
+                      <span>Rincian Ukuran & Jenis Lengan (Pcs)</span>
                     </h3>
                     <p className="text-[11px] text-slate-500">
-                      Terdapat dua kolom (Lengan Pendek & Lengan Panjang) di setiap varian ukuran.
+                      Tentukan jumlah per ukuran (Pendek & Panjang). Aktifkan multi-warna untuk 1 desain dengan beberapa warna kain.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm shrink-0">
-                    <span>Total: <strong className="text-blue-700 font-extrabold text-sm">{liveQty} pcs</strong></span>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-emerald-700">Pendek: {calcTotalPendek}</span>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-indigo-700">Panjang: {calcTotalPanjang}</span>
+
+                  {/* Mode Selector Tab */}
+                  <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl shrink-0 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleMultiColor(false)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        !formData.hasMultipleColors
+                          ? 'bg-white text-slate-800 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      id="button-mode-single-color"
+                    >
+                      Satu Warna Kain
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleMultiColor(true)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        formData.hasMultipleColors
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      id="button-mode-multi-color"
+                    >
+                      <Palette size={13} />
+                      <span>1 Desain Banyak Warna</span>
+                      {formData.hasMultipleColors && formData.colorVariants && formData.colorVariants.length > 0 && (
+                        <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold">
+                          {formData.colorVariants.length}
+                        </span>
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                {/* 2-Column Per Size Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                  {[
-                    { size: 'S', shortKey: 'sizeS_short', longKey: 'sizeS_long', total: sizeS_total },
-                    { size: 'M', shortKey: 'sizeM_short', longKey: 'sizeM_long', total: sizeM_total },
-                    { size: 'L', shortKey: 'sizeL_short', longKey: 'sizeL_long', total: sizeL_total },
-                    { size: 'XL', shortKey: 'sizeXL_short', longKey: 'sizeXL_long', total: sizeXL_total },
-                    { size: 'XXL', shortKey: 'sizeXXL_short', longKey: 'sizeXXL_long', total: sizeXXL_total },
-                  ].map(({ size, shortKey, longKey, total }) => (
-                    <div key={size} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-2">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                        <span className="text-xs font-extrabold text-slate-800">Ukuran {size}</span>
-                        <span className="text-[11px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                          {total} pcs
-                        </span>
-                      </div>
-                      
-                      {/* Sub-columns: Pendek & Panjang */}
-                      <div className="grid grid-cols-2 gap-2 text-center">
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                            Pendek
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={formData[shortKey as keyof typeof formData] || ''}
-                            onChange={(e) => setFormData({ 
-                              ...formData, 
-                              [shortKey]: Math.max(0, parseInt(e.target.value) || 0) 
-                            })}
-                            className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-center font-extrabold text-sm font-mono"
-                            placeholder="0"
-                            id={`input-size-${size.toLowerCase()}-short`}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                            Panjang
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={formData[longKey as keyof typeof formData] || ''}
-                            onChange={(e) => setFormData({ 
-                              ...formData, 
-                              [longKey]: Math.max(0, parseInt(e.target.value) || 0) 
-                            })}
-                            className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-center font-extrabold text-sm font-mono"
-                            placeholder="0"
-                            id={`input-size-${size.toLowerCase()}-long`}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                {/* Sub-header Live Totals */}
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-white border border-slate-200 p-2.5 rounded-xl shadow-2xs">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <span>Total Keseluruhan: <strong className="text-blue-700 font-extrabold text-sm">{liveQty} pcs</strong></span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-emerald-700">Pendek: {calcTotalPendek} pcs</span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-indigo-700">Panjang: {calcTotalPanjang} pcs</span>
+                  </div>
+                  {formData.hasMultipleColors && (
+                    <button
+                      type="button"
+                      onClick={handleAddColorVariant}
+                      className="inline-flex items-center gap-1 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors shadow-xs cursor-pointer"
+                      id="button-add-color-variant-top"
+                    >
+                      <Plus size={14} />
+                      <span>Tambah Warna Kain</span>
+                    </button>
+                  )}
                 </div>
+
+                {formData.hasMultipleColors ? (
+                  /* Multi-Color Variants Manager Cards */
+                  <div className="space-y-4">
+                    {(formData.colorVariants || []).map((variant, colorIdx) => {
+                      const vTotals = getColorVariantTotals(variant);
+                      return (
+                        <div 
+                          key={variant.id || colorIdx}
+                          className="bg-white border-2 border-slate-200 hover:border-blue-300 transition-colors rounded-xl p-3.5 space-y-3 shadow-2xs relative"
+                        >
+                          {/* Color Card Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                            <div className="flex items-center gap-2 flex-1 max-w-md">
+                              <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-700 font-extrabold text-xs shrink-0">
+                                {colorIdx + 1}
+                              </span>
+                              <div className="flex-1">
+                                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Warna Kain #{colorIdx + 1}:</label>
+                                <input
+                                  type="text"
+                                  value={variant.colorName}
+                                  onChange={(e) => handleUpdateColorVariant(colorIdx, 'colorName', e.target.value)}
+                                  placeholder="Nama warna kain (misal: Hitam, Navy, Maroon...)"
+                                  className="w-full text-sm font-extrabold text-slate-900 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2.5 py-1 focus:outline-none"
+                                  id={`input-variant-color-name-${colorIdx}`}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Variant Quick Stats & Actions */}
+                            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                              <span className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
+                                <span className="text-blue-700 font-extrabold">{vTotals.totalQty} pcs</span>
+                                <span className="text-slate-400 mx-1">•</span>
+                                <span className="text-emerald-700">P:{vTotals.totalShort}</span>
+                                <span className="text-slate-400 mx-1">•</span>
+                                <span className="text-indigo-700">L:{vTotals.totalLong}</span>
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDuplicateColorVariant(colorIdx)}
+                                className="text-xs font-bold text-slate-600 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Duplikat warna ini beserta jumlah ukurannya"
+                                id={`button-duplicate-color-${colorIdx}`}
+                              >
+                                <Copy size={13} />
+                                <span className="hidden sm:inline">Duplikat</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteColorVariant(colorIdx)}
+                                disabled={(formData.colorVariants?.length || 0) <= 1}
+                                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                  (formData.colorVariants?.length || 0) <= 1
+                                    ? 'text-slate-300 border-slate-200 cursor-not-allowed'
+                                    : 'text-slate-400 hover:text-red-600 hover:bg-red-50 border-slate-200'
+                                }`}
+                                title="Hapus varian warna ini"
+                                id={`button-delete-color-${colorIdx}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 2-Column Size Inputs for THIS color */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                            {[
+                              { label: 'S', shortKey: 'sizeS_short', longKey: 'sizeS_long', shortVal: variant.sizeS_short || 0, longVal: variant.sizeS_long || 0 },
+                              { label: 'M', shortKey: 'sizeM_short', longKey: 'sizeM_long', shortVal: variant.sizeM_short || 0, longVal: variant.sizeM_long || 0 },
+                              { label: 'L', shortKey: 'sizeL_short', longKey: 'sizeL_long', shortVal: variant.sizeL_short || 0, longVal: variant.sizeL_long || 0 },
+                              { label: 'XL', shortKey: 'sizeXL_short', longKey: 'sizeXL_long', shortVal: variant.sizeXL_short || 0, longVal: variant.sizeXL_long || 0 },
+                              { label: 'XXL', shortKey: 'sizeXXL_short', longKey: 'sizeXXL_long', shortVal: variant.sizeXXL_short || 0, longVal: variant.sizeXXL_long || 0 },
+                            ].map(({ label, shortKey, longKey, shortVal, longVal }) => (
+                              <div key={label} className="bg-slate-50/70 p-2 rounded-lg border border-slate-200/80 space-y-1.5">
+                                <div className="flex justify-between items-center text-xs font-bold text-slate-800">
+                                  <span>{label}</span>
+                                  <span className="font-mono text-[11px] text-blue-700 bg-white px-1.5 py-0.2 rounded border border-slate-200">
+                                    {shortVal + longVal} pcs
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5 text-center">
+                                  <div>
+                                    <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Pendek</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={shortVal || ''}
+                                      onChange={(e) => handleUpdateColorVariant(colorIdx, shortKey as keyof ColorVariant, Math.max(0, parseInt(e.target.value) || 0))}
+                                      placeholder="0"
+                                      className="w-full bg-white border border-slate-200 px-1 py-1 rounded text-center text-xs font-extrabold font-mono focus:outline-none focus:border-blue-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Panjang</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={longVal || ''}
+                                      onChange={(e) => handleUpdateColorVariant(colorIdx, longKey as keyof ColorVariant, Math.max(0, parseInt(e.target.value) || 0))}
+                                      placeholder="0"
+                                      className="w-full bg-white border border-slate-200 px-1 py-1 rounded text-center text-xs font-extrabold font-mono focus:outline-none focus:border-blue-500"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Custom Sizes for THIS color if configured */}
+                          {formData.customSizes && formData.customSizes.length > 0 && (
+                            <div className="pt-2 border-t border-slate-100">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1.5">
+                                Ukuran Custom ({variant.colorName}):
+                              </span>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                                {formData.customSizes.map((csTmpl, cIdx) => {
+                                  const customMatch = (variant.customSizes || []).find(cs => cs.name?.trim().toLowerCase() === csTmpl.name?.trim().toLowerCase());
+                                  const cShort = customMatch?.short || 0;
+                                  const cLong = customMatch?.long || 0;
+                                  return (
+                                    <div key={cIdx} className="bg-purple-50/50 p-2 rounded-lg border border-purple-100 space-y-1.5">
+                                      <div className="flex justify-between items-center text-xs font-bold text-purple-900">
+                                        <span>{csTmpl.name}</span>
+                                        <span className="font-mono text-[11px] text-purple-700 bg-white px-1.5 py-0.2 rounded border border-purple-200">
+                                          {cShort + cLong} pcs
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-1.5 text-center">
+                                        <div>
+                                          <label className="text-[9px] uppercase font-bold text-purple-500 block mb-0.5">Pendek</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={cShort || ''}
+                                            onChange={(e) => handleUpdateColorVariantCustomSize(colorIdx, cIdx, 'short', parseInt(e.target.value) || 0)}
+                                            placeholder="0"
+                                            className="w-full bg-white border border-purple-200 px-1 py-1 rounded text-center text-xs font-extrabold font-mono focus:outline-none focus:border-purple-500"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-[9px] uppercase font-bold text-purple-500 block mb-0.5">Panjang</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={cLong || ''}
+                                            onChange={(e) => handleUpdateColorVariantCustomSize(colorIdx, cIdx, 'long', parseInt(e.target.value) || 0)}
+                                            placeholder="0"
+                                            className="w-full bg-white border border-purple-200 px-1 py-1 rounded text-center text-xs font-extrabold font-mono focus:outline-none focus:border-purple-500"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="flex justify-center pt-1">
+                      <button
+                        type="button"
+                        onClick={handleAddColorVariant}
+                        className="inline-flex items-center gap-2 text-xs font-bold bg-white hover:bg-blue-50 text-blue-700 border-2 border-dashed border-blue-300 hover:border-blue-500 px-4 py-2.5 rounded-xl transition-all shadow-2xs cursor-pointer w-full justify-center"
+                        id="button-add-color-variant-bottom"
+                      >
+                        <Plus size={15} />
+                        <span>+ Tambah Warna Kain Lainnya (e.g. Maroon, Sage Green, Lilac, dll)</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* 2-Column Per Size Grid (Mode Standar Satu Warna) */
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    {[
+                      { size: 'S', shortKey: 'sizeS_short', longKey: 'sizeS_long', total: sizeS_total },
+                      { size: 'M', shortKey: 'sizeM_short', longKey: 'sizeM_long', total: sizeM_total },
+                      { size: 'L', shortKey: 'sizeL_short', longKey: 'sizeL_long', total: sizeL_total },
+                      { size: 'XL', shortKey: 'sizeXL_short', longKey: 'sizeXL_long', total: sizeXL_total },
+                      { size: 'XXL', shortKey: 'sizeXXL_short', longKey: 'sizeXXL_long', total: sizeXXL_total },
+                    ].map(({ size, shortKey, longKey, total }) => (
+                      <div key={size} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-2">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                          <span className="text-xs font-extrabold text-slate-800">Ukuran {size}</span>
+                          <span className="text-[11px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                            {total} pcs
+                          </span>
+                        </div>
+                        
+                        {/* Sub-columns: Pendek & Panjang */}
+                        <div className="grid grid-cols-2 gap-2 text-center">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                              Pendek
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={formData[shortKey as keyof typeof formData] || ''}
+                              onChange={(e) => setFormData({ 
+                                ...formData, 
+                                [shortKey]: Math.max(0, parseInt(e.target.value) || 0) 
+                              })}
+                              className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-center font-extrabold text-sm font-mono"
+                              placeholder="0"
+                              id={`input-size-${size.toLowerCase()}-short`}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                              Panjang
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={formData[longKey as keyof typeof formData] || ''}
+                              onChange={(e) => setFormData({ 
+                                ...formData, 
+                                [longKey]: Math.max(0, parseInt(e.target.value) || 0) 
+                              })}
+                              className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-center font-extrabold text-sm font-mono"
+                              placeholder="0"
+                              id={`input-size-${size.toLowerCase()}-long`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Custom Sizes Section: "Tambah Ukuran Lain" */}
                 <div className="pt-3 border-t border-slate-200/80 space-y-3">
@@ -2341,10 +2821,26 @@ export default function CashierDashboard() {
                         const currentCustom = formData.customSizes || [];
                         const defaultNames = ['3XL', '4XL', '5XL', 'Anak', 'Jumbo'];
                         const nextName = defaultNames[currentCustom.length] || `Ukuran ${currentCustom.length + 1}`;
-                        setFormData({
-                          ...formData,
-                          customSizes: [...currentCustom, { name: nextName, short: 0, long: 0 }]
-                        });
+                        const newCustomList = [...currentCustom, { name: nextName, short: 0, long: 0 }];
+                        
+                        if (formData.hasMultipleColors && formData.colorVariants && formData.colorVariants.length > 0) {
+                          const updatedVariants = formData.colorVariants.map(v => ({
+                            ...v,
+                            customSizes: [...(v.customSizes || []), { name: nextName, short: 0, long: 0 }]
+                          }));
+                          const synced = syncVariantsToFormData(updatedVariants, newCustomList);
+                          setFormData({
+                            ...formData,
+                            ...synced,
+                            customSizes: newCustomList,
+                            colorVariants: updatedVariants
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            customSizes: newCustomList
+                          });
+                        }
                       }}
                       className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm shrink-0 cursor-pointer self-start sm:self-auto"
                       id="button-add-custom-size"
@@ -2368,8 +2864,19 @@ export default function CashierDashboard() {
                                 value={item.name}
                                 onChange={(e) => {
                                   const updated = [...(formData.customSizes || [])];
+                                  const oldName = updated[index].name;
                                   updated[index] = { ...updated[index], name: e.target.value };
-                                  setFormData({ ...formData, customSizes: updated });
+                                  if (formData.hasMultipleColors && formData.colorVariants) {
+                                    const updatedVariants = formData.colorVariants.map(v => ({
+                                      ...v,
+                                      customSizes: (v.customSizes || []).map(cs => 
+                                        cs.name === oldName ? { ...cs, name: e.target.value } : cs
+                                      )
+                                    }));
+                                    setFormData({ ...formData, customSizes: updated, colorVariants: updatedVariants });
+                                  } else {
+                                    setFormData({ ...formData, customSizes: updated });
+                                  }
                                 }}
                                 placeholder="Nama Ukuran"
                                 className="text-xs font-extrabold text-slate-800 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-blue-500 px-1.5 py-0.5 rounded w-24 focus:outline-none"
@@ -2382,10 +2889,25 @@ export default function CashierDashboard() {
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const removedItem = (formData.customSizes || [])[index];
                                     const updated = (formData.customSizes || []).filter((_, i) => i !== index);
-                                    setFormData({ ...formData, customSizes: updated });
+                                    if (formData.hasMultipleColors && formData.colorVariants) {
+                                      const updatedVariants = formData.colorVariants.map(v => ({
+                                        ...v,
+                                        customSizes: (v.customSizes || []).filter(cs => cs.name !== removedItem?.name)
+                                      }));
+                                      const synced = syncVariantsToFormData(updatedVariants, updated);
+                                      setFormData({
+                                        ...formData,
+                                        ...synced,
+                                        customSizes: updated,
+                                        colorVariants: updatedVariants
+                                      });
+                                    } else {
+                                      setFormData({ ...formData, customSizes: updated });
+                                    }
                                   }}
-                                  className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+                                  className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer"
                                   title="Hapus Ukuran Ini"
                                   id={`button-remove-custom-size-${index}`}
                                 >
@@ -2395,44 +2917,54 @@ export default function CashierDashboard() {
                             </div>
 
                             {/* Sub-columns: Pendek & Panjang */}
-                            <div className="grid grid-cols-2 gap-2 text-center">
-                              <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                                  Pendek
-                                </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={item.short || ''}
-                                  onChange={(e) => {
-                                    const updated = [...(formData.customSizes || [])];
-                                    updated[index] = { ...updated[index], short: Math.max(0, parseInt(e.target.value) || 0) };
-                                    setFormData({ ...formData, customSizes: updated });
-                                  }}
-                                  className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-center font-extrabold text-sm font-mono"
-                                  placeholder="0"
-                                  id={`input-custom-size-${index}-short`}
-                                />
+                            {formData.hasMultipleColors ? (
+                              <div className="bg-slate-50 p-2 rounded-lg text-center">
+                                <p className="text-[10px] text-slate-500 mb-1 font-medium">Diatur per warna kain:</p>
+                                <div className="flex justify-center gap-3 text-xs font-bold font-mono">
+                                  <span className="text-emerald-700">P: {item.short || 0}</span>
+                                  <span className="text-indigo-700">L: {item.long || 0}</span>
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                                  Panjang
-                                </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={item.long || ''}
-                                  onChange={(e) => {
-                                    const updated = [...(formData.customSizes || [])];
-                                    updated[index] = { ...updated[index], long: Math.max(0, parseInt(e.target.value) || 0) };
-                                    setFormData({ ...formData, customSizes: updated });
-                                  }}
-                                  className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-center font-extrabold text-sm font-mono"
-                                  placeholder="0"
-                                  id={`input-custom-size-${index}-long`}
-                                />
+                            ) : (
+                              <div className="grid grid-cols-2 gap-2 text-center">
+                                <div>
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                                    Pendek
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.short || ''}
+                                    onChange={(e) => {
+                                      const updated = [...(formData.customSizes || [])];
+                                      updated[index] = { ...updated[index], short: Math.max(0, parseInt(e.target.value) || 0) };
+                                      setFormData({ ...formData, customSizes: updated });
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-center font-extrabold text-sm font-mono"
+                                    placeholder="0"
+                                    id={`input-custom-size-${index}-short`}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                                    Panjang
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.long || ''}
+                                    onChange={(e) => {
+                                      const updated = [...(formData.customSizes || [])];
+                                      updated[index] = { ...updated[index], long: Math.max(0, parseInt(e.target.value) || 0) };
+                                      setFormData({ ...formData, customSizes: updated });
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-center font-extrabold text-sm font-mono"
+                                    placeholder="0"
+                                    id={`input-custom-size-${index}-long`}
+                                  />
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         );
                       })}

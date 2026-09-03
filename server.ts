@@ -608,6 +608,7 @@ app.post("/api/orders", (req, res) => {
     }
 
     const newOrder: ConvectionOrder = {
+      ...newOrderData,
       id,
       invoiceNumber,
       customerName: newOrderData.customerName || "Tanpa Nama",
@@ -617,6 +618,8 @@ app.post("/api/orders", (req, res) => {
       productType: newOrderData.productType || "Kaos",
       fabricType: newOrderData.fabricType || "",
       fabricColor: newOrderData.fabricColor || "",
+      hasMultipleColors: Boolean(newOrderData.hasMultipleColors),
+      colorVariants: newOrderData.colorVariants || [],
       sablonBordir: newOrderData.sablonBordir || "",
       sizeS,
       sizeM,
@@ -627,11 +630,11 @@ app.post("/api/orders", (req, res) => {
       lenganPendek: Number(newOrderData.lenganPendek) || 0,
       lenganPanjang: Number(newOrderData.lenganPanjang) || 0,
       customSizingDetails: newOrderData.customSizingDetails || "",
-      quantity,
+      quantity: Number(newOrderData.quantity) || quantity,
       unitPrice,
       discount,
       shippingCost,
-      totalPrice,
+      totalPrice: Number(newOrderData.totalPrice) || totalPrice,
       dpAmount: paymentStatus === "LUNAS" ? totalPrice : dpAmount,
       remainingBalance: paymentStatus === "LUNAS" ? 0 : remainingBalance,
       paymentStatus,
@@ -712,11 +715,19 @@ app.put("/api/orders/:id", (req, res) => {
     const sXXL = updateData.sizeXXL !== undefined ? Number(updateData.sizeXXL) : existingOrder.sizeXXL;
     const customAdd = updateData.quantityCustomAdd !== undefined ? Number(updateData.quantityCustomAdd) : 0;
     
-    updatedOrder.quantity = sS + sM + sL + sXL + sXXL + customAdd;
+    updatedOrder.quantity = updateData.quantity !== undefined 
+      ? Number(updateData.quantity) 
+      : (sS + sM + sL + sXL + sXXL + customAdd);
+  } else if (updateData.quantity !== undefined) {
+    updatedOrder.quantity = Number(updateData.quantity);
   }
 
-  // Recalculate total
-  updatedOrder.totalPrice = (updatedOrder.quantity * updatedOrder.unitPrice) - updatedOrder.discount + updatedOrder.shippingCost;
+  // Recalculate total if not explicitly provided
+  if (updateData.totalPrice !== undefined) {
+    updatedOrder.totalPrice = Number(updateData.totalPrice);
+  } else {
+    updatedOrder.totalPrice = (updatedOrder.quantity * updatedOrder.unitPrice) - updatedOrder.discount + updatedOrder.shippingCost;
+  }
   
   // Recalculate remaining balance from payment history
   const totalPaid = updatedOrder.paymentHistory
