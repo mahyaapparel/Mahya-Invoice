@@ -76,3 +76,21 @@
     margin: 0;
   }
 }
+
+/* Custom smooth styling for top synchronized scrollbar */
+#top-horizontal-scrollbar-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+#top-horizontal-scrollbar-wrapper::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 9999px;
+}
+#top-horizontal-scrollbar-wrapper::-webkit-scrollbar-thumb {
+  background: #3b82f6;
+  border-radius: 9999px;
+  border: 1px solid #bfdbfe;
+}
+#top-horizontal-scrollbar-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
+

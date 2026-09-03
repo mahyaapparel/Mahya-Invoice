@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, Search, Filter, Calendar, DollarSign, Clock, CheckCircle2,
   TrendingUp, User, Phone, ExternalLink, Copy, Trash2, Edit3, 
   AlertTriangle, Activity, FileText, Check, MapPin, CreditCard, Scissors, Sparkles, SlidersHorizontal, X, Settings, Upload,
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
   Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered, Receipt,
-  Image as ImageIcon, Loader2, Sparkle, Palette, Layers
+  Image as ImageIcon, Loader2, Sparkle, Palette, Layers, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord, FinanceTransaction, ColorVariant } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
@@ -143,6 +143,58 @@ export default function CashierDashboard() {
   const [quickPayAmount, setQuickPayAmount] = useState<number>(0);
   const [quickPayMethod, setQuickPayMethod] = useState<'BANK_TRANSFER' | 'QRIS' | 'E_WALLET' | 'CASH'>('CASH');
   const [quickPayRef, setQuickPayRef] = useState<string>('Kasir Tunai');
+
+  // Dual Synchronized Scrollbars (Top & Bottom slider for horizontal table scrolling)
+  const topTableScrollRef = useRef<HTMLDivElement>(null);
+  const bottomTableScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncingTopScroll = useRef(false);
+  const isSyncingBottomScroll = useRef(false);
+  const [tableScrollWidth, setTableScrollWidth] = useState<number>(0);
+
+  useEffect(() => {
+    const measureScrollWidth = () => {
+      if (bottomTableScrollRef.current) {
+        setTableScrollWidth(bottomTableScrollRef.current.scrollWidth);
+      }
+    };
+
+    measureScrollWidth();
+    window.addEventListener('resize', measureScrollWidth);
+    const timer = setTimeout(measureScrollWidth, 400);
+
+    return () => {
+      window.removeEventListener('resize', measureScrollWidth);
+      clearTimeout(timer);
+    };
+  }, [orders, searchQuery, filterProduction, filterPayment, loading]);
+
+  const handleTopScroll = () => {
+    if (isSyncingTopScroll.current) {
+      isSyncingTopScroll.current = false;
+      return;
+    }
+    if (topTableScrollRef.current && bottomTableScrollRef.current) {
+      isSyncingBottomScroll.current = true;
+      bottomTableScrollRef.current.scrollLeft = topTableScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handleBottomScroll = () => {
+    if (isSyncingBottomScroll.current) {
+      isSyncingBottomScroll.current = false;
+      return;
+    }
+    if (topTableScrollRef.current && bottomTableScrollRef.current) {
+      isSyncingTopScroll.current = true;
+      topTableScrollRef.current.scrollLeft = bottomTableScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handleScrollByAmount = (amount: number) => {
+    if (bottomTableScrollRef.current) {
+      bottomTableScrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+  };
 
   // Catat Transaksi state & handlers
   const [showTransactionModal, setShowTransactionModal] = useState<boolean>(false);
@@ -2046,8 +2098,56 @@ export default function CashierDashboard() {
           </div>
         </div>
 
+        {/* Top Synchronized Scrollbar (Bilah Geser Atas agar tidak perlu scroll ke bawah dulu) */}
+        {!loading && filteredOrders.length > 0 && (
+          <div className="bg-slate-50 border-b border-slate-200/80 px-4 py-2 flex items-center justify-between gap-3 text-xs text-slate-500 select-none">
+            <div className="flex items-center gap-2 shrink-0 font-bold text-slate-600">
+              <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <span>Geser Tabel:</span>
+            </div>
+
+            {/* Top Scrollbar Track */}
+            <div
+              ref={topTableScrollRef}
+              onScroll={handleTopScroll}
+              className="flex-1 overflow-x-auto overflow-y-hidden h-6 scrollbar-thin bg-slate-200/70 hover:bg-slate-200 rounded-full border border-slate-300/60 shadow-inner px-1 cursor-ew-resize"
+              title="Geser ke kiri / kanan untuk melihat kolom tabel"
+              id="top-horizontal-scrollbar-wrapper"
+            >
+              <div style={{ width: `${Math.max(tableScrollWidth || 0, 1100)}px`, height: '6px' }} />
+            </div>
+
+            {/* Quick Navigation Chevron Buttons */}
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleScrollByAmount(-250)}
+                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 shadow-xs cursor-pointer active:scale-95 transition-all"
+                title="Geser ke Kiri"
+                id="btn-scroll-left-top"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleScrollByAmount(250)}
+                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 shadow-xs cursor-pointer active:scale-95 transition-all"
+                title="Geser ke Kanan"
+                id="btn-scroll-right-top"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Desktop Table View */}
-        <div className="overflow-x-auto">
+        <div 
+          ref={bottomTableScrollRef}
+          onScroll={handleBottomScroll}
+          className="overflow-x-auto"
+          id="main-order-table-scroll-container"
+        >
           {loading ? (
             <div className="py-20 text-center text-slate-500">
               <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
