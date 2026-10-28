@@ -139,6 +139,9 @@ export default function InvoiceDetailModal({ order, onClose, onUpdatePaymentStat
       });
 
       await sendInvoicePaymentWebhook({
+        action: 'update',
+        isUpdate: true,
+        txId: payId,
         amount: Number(editAmount) || 0,
         invoiceNumber: cleanInv,
         customerName: order.customerName,

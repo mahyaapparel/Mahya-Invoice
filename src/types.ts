@@ -101,6 +101,7 @@ export interface ConvectionOrder {
   designImageUrl?: string; // URL / Base64 foto desain mockup produk yang dipesan
   designNotes?: string;    // Catatan detail posisi/ukuran desain
   createdAt: string;
+  updatedAt?: string;
   orderDate?: string; // Tanggal order masuk (YYYY-MM-DD / ISO)
   deadline: string;
   paymentHistory: PaymentRecord[];

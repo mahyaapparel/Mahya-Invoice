@@ -8,6 +8,9 @@ export interface InvoicePaymentWebhookPayload {
   description: string;
   invoiceNumber: string;
   paymentType: 'DP' | 'Pelunasan';
+  action?: 'create' | 'update';
+  isUpdate?: boolean;
+  transactionId?: string;
 }
 
 export const WEBHOOK_URL = 'https://ais-dev-uuxmczdtyyiw62zeoagtzh-1058766488006.asia-southeast1.run.app/api/webhooks/invoice-payment';
@@ -31,6 +34,9 @@ export const sendInvoicePaymentWebhook = async (params: {
   type?: string;
   description?: string;
   txSequence?: number;
+  action?: 'create' | 'update';
+  isUpdate?: boolean;
+  txId?: string;
 }) => {
   if (!params.amount || params.amount <= 0) return;
 
@@ -48,6 +54,12 @@ export const sendInvoicePaymentWebhook = async (params: {
   const division = params.division || 'Konveksi';
   const txType = params.type || 'Pemasukan';
   const description = params.description || `${payType} Invoice #${cleanInvNum} - ${cleanCustomerName}`;
+  const isUpdate = Boolean(params.isUpdate || params.action === 'update');
+  const action: 'create' | 'update' = isUpdate ? 'update' : 'create';
+
+  // Use a deterministic canonical ID so repeat updates update the exact same document rather than creating duplicates
+  const canonicalId = `tx-${cleanInvNum.replace(/[^a-zA-Z0-9]/g, '-')}-${payType.toLowerCase()}`;
+  const finalTxId = params.txId || canonicalId;
 
   const payload: InvoicePaymentWebhookPayload = {
     date: formattedDate,
@@ -56,14 +68,16 @@ export const sendInvoicePaymentWebhook = async (params: {
     amount: params.amount,
     description,
     invoiceNumber: cleanInvNum,
-    paymentType: payType
+    paymentType: payType,
+    action,
+    isUpdate,
+    transactionId: finalTxId
   };
 
-  // 1. Direct real-time save to Firestore 'transactions' collection
+  // 1. Direct real-time save or update to Firestore 'transactions' collection
   try {
-    const txId = `tx-${cleanInvNum.replace(/[^a-zA-Z0-9]/g, '-')}-${payType.toLowerCase()}-${Date.now()}`;
     await saveTransactionToFirestore({
-      id: txId,
+      id: finalTxId,
       date: formattedDate,
       division,
       type: txType as any,
@@ -78,7 +92,7 @@ export const sendInvoicePaymentWebhook = async (params: {
 
   // 2. Also dispatch to webhook proxy
   try {
-    console.log('Sending invoice payment webhook:', payload);
+    console.log(`Sending invoice payment webhook [${action.toUpperCase()}]:`, payload);
     const response = await fetch('/api/webhook-proxy', {
       method: 'POST',
       headers: {

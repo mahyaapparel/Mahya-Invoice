@@ -22,6 +22,9 @@ async function sendWebhookToFinance(payload: {
   description: string;
   invoiceNumber: string;
   paymentType: 'DP' | 'Pelunasan';
+  action?: 'create' | 'update';
+  isUpdate?: boolean;
+  transactionId?: string;
 }) {
   const endpoints = [
     "https://finance.mahyakaryafaintech.com/api/webhooks/invoice-payment",
@@ -551,7 +554,7 @@ app.post("/api/orders", (req, res) => {
     const orders = readDB();
     const newOrderData = req.body;
 
-    const id = "ord-" + Math.random().toString(36).substr(2, 9);
+    const id = newOrderData.id || ("ord-" + Math.random().toString(36).substr(2, 9));
     let invoiceNumber = newOrderData.invoiceNumber;
     if (!invoiceNumber) {
       invoiceNumber = generateInvoiceNumber(orders);
@@ -587,9 +590,11 @@ app.post("/api/orders", (req, res) => {
     const remainingBalance = totalPrice - dpAmount;
 
     let paymentStatus: PaymentStatus = "BELUM_BAYAR";
-    const paymentHistory: PaymentRecord[] = [];
+    const paymentHistory: PaymentRecord[] = newOrderData.paymentHistory && newOrderData.paymentHistory.length > 0 
+      ? newOrderData.paymentHistory 
+      : [];
 
-    if (dpAmount > 0) {
+    if (paymentHistory.length === 0 && dpAmount > 0) {
       if (dpAmount >= totalPrice) {
         paymentStatus = "LUNAS";
       } else {
@@ -605,6 +610,8 @@ app.post("/api/orders", (req, res) => {
         timestamp: new Date().toISOString(),
         status: "SUCCESS"
       });
+    } else if (newOrderData.paymentStatus) {
+      paymentStatus = newOrderData.paymentStatus;
     }
 
     const newOrder: ConvectionOrder = {
@@ -635,17 +642,22 @@ app.post("/api/orders", (req, res) => {
       discount,
       shippingCost,
       totalPrice: Number(newOrderData.totalPrice) || totalPrice,
-      dpAmount: paymentStatus === "LUNAS" ? totalPrice : dpAmount,
-      remainingBalance: paymentStatus === "LUNAS" ? 0 : remainingBalance,
+      dpAmount: paymentStatus === "LUNAS" ? (Number(newOrderData.totalPrice) || totalPrice) : (Number(newOrderData.dpAmount) || dpAmount),
+      remainingBalance: paymentStatus === "LUNAS" ? 0 : (Number(newOrderData.remainingBalance) ?? remainingBalance),
       paymentStatus,
-      productionStatus: "ANTREAN",
+      productionStatus: newOrderData.productionStatus || "ANTREAN",
       notes: newOrderData.notes || "",
-      createdAt: new Date().toISOString(),
+      createdAt: newOrderData.createdAt || new Date().toISOString(),
       deadline: newOrderData.deadline || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       paymentHistory
     };
 
-    orders.push(newOrder);
+    const existingIndex = orders.findIndex(o => o.id === id || (newOrder.invoiceNumber && o.invoiceNumber === newOrder.invoiceNumber));
+    if (existingIndex >= 0) {
+      orders[existingIndex] = { ...orders[existingIndex], ...newOrder };
+    } else {
+      orders.push(newOrder);
+    }
     writeDB(orders);
 
     // Trigger finance webhook for new order DP / Full payment

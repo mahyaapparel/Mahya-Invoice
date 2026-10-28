@@ -7,6 +7,7 @@ import {
   getDocs,
   getDoc,
   query,
+  where,
   orderBy
 } from 'firebase/firestore';
 import { db, financeDb } from '../lib/firebase';
@@ -298,6 +299,135 @@ export async function syncOrderTransactionsToFirestore(order: ConvectionOrder) {
     }
   } catch (err) {
     console.error("Error syncing order transactions to Firestore:", err);
+  }
+}
+
+/**
+ * Update transaction data in both local Firestore and Finance Dashboard Firestore.
+ * Prevents duplicates when an invoice is edited (e.g. order item added, DP changed, etc.)
+ * by updating the existing transaction record in-place instead of creating a new one.
+ * If multiple duplicate transactions were previously created for this invoice, cleanly cleans them up.
+ */
+export async function updateOrderTransactionsInFinance(
+  order: ConvectionOrder,
+  options?: {
+    customAmount?: number;
+    customDescription?: string;
+  }
+) {
+  try {
+    if (!order) return;
+    const cleanInvNum = (order.invoiceNumber || order.id || 'INV').replace(/^#/, '');
+    const custName = (order.customerName || 'Pelanggan').trim();
+    const division = order.division || 'Konveksi';
+
+    // Calculate latest valid payment amount
+    const totalPaid = (order.paymentHistory || [])
+      .filter((p) => p.status === 'SUCCESS' || !p.status)
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || Number(order.dpAmount) || 0;
+
+    const amount = options?.customAmount !== undefined ? options.customAmount : totalPaid;
+    if (amount <= 0) return;
+
+    const isLunas = order.paymentStatus === 'LUNAS' || order.remainingBalance <= 0;
+    const payType = isLunas ? 'Pelunasan' : 'DP';
+    const txDate = order.orderDate ? order.orderDate.split('T')[0] : (order.createdAt ? order.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+    const description = options?.customDescription || `${payType} Invoice #${cleanInvNum} - ${custName}`;
+
+    // Canonical deterministic transaction ID for this invoice
+    const canonicalTxId = `tx-${cleanInvNum.replace(/[^a-zA-Z0-9]/g, '-')}-${payType.toLowerCase()}`;
+
+    // 1. Check and clean up/update in local Firestore 'transactions'
+    try {
+      const qLocal = query(collection(db, TRANSACTIONS_COLLECTION), where('invoiceNumber', '==', cleanInvNum));
+      const snapLocal = await getDocs(qLocal);
+      
+      if (!snapLocal.empty) {
+        let first = true;
+        for (const docSnap of snapLocal.docs) {
+          if (first) {
+            // Update the existing first doc
+            await setDoc(docSnap.ref, {
+              date: txDate,
+              division,
+              type: 'Pemasukan',
+              amount,
+              description,
+              invoiceNumber: cleanInvNum,
+              paymentType: payType,
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+            first = false;
+          } else {
+            // Clean up duplicate old entries
+            await deleteDoc(docSnap.ref).catch(() => {});
+          }
+        }
+      } else {
+        // Create with canonical ID
+        await setDoc(doc(db, TRANSACTIONS_COLLECTION, canonicalTxId), {
+          id: canonicalTxId,
+          date: txDate,
+          division,
+          type: 'Pemasukan',
+          amount,
+          description,
+          invoiceNumber: cleanInvNum,
+          paymentType: payType,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch (err) {
+      console.warn("Local transactions update notice:", err);
+    }
+
+    // 2. Check and clean up/update in Finance Dashboard Firestore (financeDb)
+    try {
+      const qFinance = query(collection(financeDb, TRANSACTIONS_COLLECTION), where('invoiceNumber', '==', cleanInvNum));
+      const snapFinance = await getDocs(qFinance);
+
+      if (!snapFinance.empty) {
+        let first = true;
+        for (const docSnap of snapFinance.docs) {
+          if (first) {
+            await setDoc(docSnap.ref, {
+              date: txDate,
+              division,
+              type: 'Pemasukan',
+              amount,
+              description,
+              invoiceNumber: cleanInvNum,
+              paymentType: payType,
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+            console.log("Finance Dashboard transaction successfully updated in-place:", docSnap.id);
+            first = false;
+          } else {
+            // Remove duplicate entry so it doesn't stay doubled
+            await deleteDoc(docSnap.ref).catch(() => {});
+            console.log("Cleaned up duplicate Finance Dashboard transaction:", docSnap.id);
+          }
+        }
+      } else {
+        // If not found by query, save with canonical ID
+        await setDoc(doc(financeDb, TRANSACTIONS_COLLECTION, canonicalTxId), {
+          id: canonicalTxId,
+          date: txDate,
+          division,
+          type: 'Pemasukan',
+          amount,
+          description,
+          invoiceNumber: cleanInvNum,
+          paymentType: payType,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+        console.log("Created canonical Finance Dashboard transaction:", canonicalTxId);
+      }
+    } catch (err) {
+      console.warn("Finance DB update notice:", err);
+    }
+  } catch (err) {
+    console.error("Error updating order transactions in Finance:", err);
   }
 }
 

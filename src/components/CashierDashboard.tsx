@@ -5,7 +5,7 @@ import {
   AlertTriangle, Activity, FileText, Check, MapPin, CreditCard, Scissors, Sparkles, SlidersHorizontal, X, Settings, Upload,
   Users, UserPlus, PhoneCall, MessageSquare, Building, UserCheck, PlusCircle,
   Cloud, LogIn, LogOut, ShieldCheck, Lock, Unlock, KeyRound, Eye, EyeOff, ShieldAlert, Key, ListOrdered, Receipt,
-  Image as ImageIcon, Loader2, Sparkle, Palette, Layers, ChevronLeft, ChevronRight
+  Image as ImageIcon, Loader2, Sparkle, Palette, Layers, ChevronLeft, ChevronRight, RefreshCw
 } from 'lucide-react';
 import { ConvectionOrder, PaymentStatus, ProductionStatus, InvoiceSettings, BankAccount, Customer, PaymentRecord, FinanceTransaction, ColorVariant } from '../types';
 import { formatRupiah, formatIndonesianDate, getPaymentStatusDetails, getProductionStatusDetails } from '../utils/format';
@@ -26,8 +26,55 @@ import {
   deleteCustomerFromFirestore,
   saveSettingsToFirestore,
   saveTransactionToFirestore,
+  updateOrderTransactionsInFinance,
   seedInitialFirestoreData
 } from '../services/firestoreService';
+
+// Strict deduplication helper to ensure no duplicate invoice numbers or IDs appear in the list
+function deduplicateOrders(orderList: ConvectionOrder[]): ConvectionOrder[] {
+  if (!orderList || orderList.length === 0) return [];
+  const map = new Map<string, ConvectionOrder>();
+  for (const o of orderList) {
+    if (!o) continue;
+    const existing = map.get(o.id);
+    if (!existing) {
+      map.set(o.id, o);
+    } else {
+      const timeExisting = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      const timeNew = new Date(o.updatedAt || o.createdAt || 0).getTime();
+      if (timeNew >= timeExisting) {
+        map.set(o.id, o);
+      }
+    }
+  }
+
+  const byInvoice = new Map<string, ConvectionOrder>();
+  for (const o of map.values()) {
+    const inv = o.invoiceNumber?.trim();
+    if (!inv) {
+      byInvoice.set(o.id, o);
+      continue;
+    }
+    const existing = byInvoice.get(inv);
+    if (!existing) {
+      byInvoice.set(inv, o);
+    } else {
+      const payCountExisting = existing.paymentHistory?.length || 0;
+      const payCountNew = o.paymentHistory?.length || 0;
+      if (payCountNew > payCountExisting) {
+        byInvoice.set(inv, o);
+      } else if (payCountNew === payCountExisting) {
+        const timeExisting = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const timeNew = new Date(o.updatedAt || o.createdAt || 0).getTime();
+        if (timeNew >= timeExisting) {
+          byInvoice.set(inv, o);
+        }
+      }
+    }
+  }
+
+  return Array.from(byInvoice.values());
+}
 
 export default function CashierDashboard() {
   const { currentUser, logout } = useAuth();
@@ -38,6 +85,7 @@ export default function CashierDashboard() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
 
 
   // Customer Management states
@@ -285,6 +333,7 @@ export default function CashierDashboard() {
 
   // Edit Order state
   const [editingOrder, setEditingOrder] = useState<ConvectionOrder | null>(null);
+  const [editFinanceSyncMode, setEditFinanceSyncMode] = useState<'update' | 'none'>('update');
 
   // New Order Form state
   const [formData, setFormData] = useState({
@@ -832,7 +881,7 @@ export default function CashierDashboard() {
         if (settingsRes.ok) initialSettings = await settingsRes.json();
         if (custRes.ok) initialCust = await custRes.json();
 
-        if (initialOrders.length > 0) setOrders(initialOrders);
+        if (initialOrders.length > 0) setOrders(deduplicateOrders(initialOrders));
         if (initialSettings) setInvoiceSettings(initialSettings);
         if (initialCust.length > 0) setCustomers(initialCust);
 
@@ -849,7 +898,7 @@ export default function CashierDashboard() {
       // Realtime listeners
       unsubOrders = subscribeOrders((fireOrders) => {
         if (fireOrders && fireOrders.length >= 0) {
-          setOrders(fireOrders);
+          setOrders(deduplicateOrders(fireOrders));
           setCloudSynced(true);
           setLoading(false);
         }
@@ -912,7 +961,7 @@ export default function CashierDashboard() {
       const res = await fetch('/api/orders');
       if (res.ok) {
         const data = await res.json();
-        setOrders(data);
+        setOrders(deduplicateOrders(data));
       }
     } catch (err) {
       console.error('Error fetching fallback orders:', err);
@@ -1198,6 +1247,16 @@ export default function CashierDashboard() {
 
   const handleOpenEditModal = (order: ConvectionOrder) => {
     setEditingOrder(order);
+    
+    // Accurately determine existing DP from order.dpAmount or paymentHistory
+    const totalPaidInHistory = (order.paymentHistory || [])
+      .filter(p => p.status === 'SUCCESS' || !p.status)
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const dpRecord = (order.paymentHistory || []).find(p => p.type === 'DP') || (order.paymentHistory || [])[0];
+    const existingDp = Number(order.dpAmount) > 0 
+      ? Number(order.dpAmount) 
+      : (dpRecord ? Number(dpRecord.amount) : totalPaidInHistory);
+
     setFormData({
       customerName: order.customerName || '',
       customerPhone: order.customerPhone || '',
@@ -1236,9 +1295,9 @@ export default function CashierDashboard() {
       addPriceCustom: order.addPriceCustom || 0,
       discount: order.discount || 0,
       shippingCost: order.shippingCost || 0,
-      dpAmount: order.dpAmount || 0,
-      paymentMethod: 'CASH',
-      paymentReference: 'Kasir Tunai',
+      dpAmount: existingDp,
+      paymentMethod: dpRecord?.method || 'CASH',
+      paymentReference: dpRecord?.reference || 'Kasir Tunai',
       notes: order.notes || '',
       designImageUrl: order.designImageUrl || '',
       designNotes: order.designNotes || '',
@@ -1253,6 +1312,8 @@ export default function CashierDashboard() {
   // Submit order form (Create or Edit)
   const handleCreateOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingOrder) return;
+
     if (!formData.customerName) {
       alert('Nama pelanggan wajib diisi.');
       return;
@@ -1261,6 +1322,8 @@ export default function CashierDashboard() {
       alert('Jumlah pakaian (quantity) harus lebih besar dari 0. Silakan isi rincian ukuran.');
       return;
     }
+
+    setIsSubmittingOrder(true);
 
     try {
       const isEdit = !!editingOrder;
@@ -1317,19 +1380,21 @@ export default function CashierDashboard() {
         const dpIndex = existingHistory.findIndex(p => p.type === 'DP');
         
         if (dpIndex >= 0) {
-          finalPaymentHistory = existingHistory.map((p, idx) => {
-            if (idx === dpIndex) {
-              return {
-                ...p,
-                amount: newDpAmount,
-                method: formData.paymentMethod || p.method || 'CASH',
-                reference: formData.paymentReference || p.reference || 'Kasir Tunai'
-              };
-            }
-            return p;
-          });
-          if (newDpAmount <= 0) {
-            finalPaymentHistory = finalPaymentHistory.filter((_, idx) => idx !== dpIndex);
+          if (newDpAmount > 0) {
+            finalPaymentHistory = existingHistory.map((p, idx) => {
+              if (idx === dpIndex) {
+                return {
+                  ...p,
+                  amount: newDpAmount,
+                  method: formData.paymentMethod || p.method || 'CASH',
+                  reference: formData.paymentReference || p.reference || 'Kasir Tunai'
+                };
+              }
+              return p;
+            });
+          } else {
+            // User did not alter DP, preserve the existing payment history so DP is never lost!
+            finalPaymentHistory = [...existingHistory];
           }
         } else if (newDpAmount > 0) {
           finalPaymentHistory = [
@@ -1362,6 +1427,9 @@ export default function CashierDashboard() {
       const totalPaidSoFar = finalPaymentHistory
         .filter(p => p.status === 'SUCCESS' || !p.status)
         .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+      const dpItem = finalPaymentHistory.find(p => p.type === 'DP');
+      const calculatedDpAmount = dpItem ? dpItem.amount : (newDpAmount > 0 ? newDpAmount : totalPaidSoFar);
 
       const newRemaining = Math.max(0, liveTotal - totalPaidSoFar);
       const newPayStatus: PaymentStatus = newRemaining <= 0 ? 'LUNAS' : totalPaidSoFar > 0 ? 'DP_DIBAYAR' : 'BELUM_BAYAR';
@@ -1407,7 +1475,7 @@ export default function CashierDashboard() {
         shippingCost: Number(formData.shippingCost || 0),
         quantity: liveQty,
         totalPrice: liveTotal,
-        dpAmount: newDpAmount,
+        dpAmount: calculatedDpAmount,
         remainingBalance: newRemaining,
         paymentStatus: newPayStatus,
         productionStatus: isEdit ? editingOrder.productionStatus : 'ANTREAN',
@@ -1424,22 +1492,45 @@ export default function CashierDashboard() {
 
       await saveOrderToFirestore(fullOrderObj);
 
-      const addedAmount = !isEdit
-        ? newDpAmount
-        : Math.max(0, newDpAmount - (editingOrder.dpAmount || 0));
+      if (isEdit) {
+        // Mode Edit Invoice:
+        if (editFinanceSyncMode === 'update') {
+          // 1. Perbarui data lama transaksi invoice ini di Firestore Keuangan (in-place update, anti-dobel & bersihkan duplikat)
+          await updateOrderTransactionsInFinance(fullOrderObj);
 
-      if (addedAmount > 0) {
-        const isLunas = newDpAmount >= liveTotal;
-        const totalTxCount = finalPaymentHistory ? finalPaymentHistory.length : 1;
-        sendInvoicePaymentWebhook({
-          amount: addedAmount,
-          invoiceNumber: invNum,
-          customerName: formData.customerName,
-          paymentType: isLunas ? 'Pelunasan' : 'DP',
-          isFullOrSettled: isLunas,
-          division: formData.division || 'Konveksi',
-          txSequence: totalTxCount
-        }).catch(() => {});
+          // 2. Kirim sinyal update ke webhook Keuangan
+          if (calculatedDpAmount > 0) {
+            const isLunas = calculatedDpAmount >= liveTotal;
+            const canonicalId = `tx-${invNum.replace(/[^a-zA-Z0-9]/g, '-')}-${isLunas ? 'pelunasan' : 'dp'}`;
+            sendInvoicePaymentWebhook({
+              action: 'update',
+              isUpdate: true,
+              amount: calculatedDpAmount,
+              invoiceNumber: invNum,
+              customerName: formData.customerName,
+              paymentType: isLunas ? 'Pelunasan' : 'DP',
+              isFullOrSettled: isLunas,
+              division: formData.division || 'Konveksi',
+              txId: canonicalId
+            }).catch(() => {});
+          }
+        }
+      } else {
+        // Mode Order Baru:
+        if (calculatedDpAmount > 0) {
+          const isLunas = calculatedDpAmount >= liveTotal;
+          const canonicalId = `tx-${invNum.replace(/[^a-zA-Z0-9]/g, '-')}-${isLunas ? 'pelunasan' : 'dp'}`;
+          sendInvoicePaymentWebhook({
+            action: 'create',
+            amount: calculatedDpAmount,
+            invoiceNumber: invNum,
+            customerName: formData.customerName,
+            paymentType: isLunas ? 'Pelunasan' : 'DP',
+            isFullOrSettled: isLunas,
+            division: formData.division || 'Konveksi',
+            txId: canonicalId
+          }).catch(() => {});
+        }
       }
 
       const url = isEdit ? `/api/orders/${editingOrder.id}` : '/api/orders';
@@ -1451,7 +1542,7 @@ export default function CashierDashboard() {
           ...formData,
           id: orderId,
           invoiceNumber: invNum,
-          dpAmount: newDpAmount,
+          dpAmount: calculatedDpAmount,
           paymentHistory: finalPaymentHistory,
           remainingBalance: newRemaining,
           paymentStatus: newPayStatus,
@@ -1500,6 +1591,8 @@ export default function CashierDashboard() {
       setShowAddForm(false);
     } catch (err: any) {
       alert(err.message || 'Terjadi kesalahan.');
+    } finally {
+      setIsSubmittingOrder(false);
     }
   };
 
@@ -1520,14 +1613,20 @@ export default function CashierDashboard() {
         status: 'SUCCESS' as const
       };
 
-      const updatedRemaining = Math.max(0, quickPayOrder.remainingBalance - quickPayAmount);
-      const updatedStatus: PaymentStatus = updatedRemaining <= 0 ? 'LUNAS' : 'DP_DIBAYAR';
-
       const updatedPaymentHistory = [...(quickPayOrder.paymentHistory || []), newPayRecord];
       const totalTxCount = updatedPaymentHistory.length;
+      const totalPaid = updatedPaymentHistory
+        .filter(p => p.status === 'SUCCESS' || !p.status)
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const dpItem = updatedPaymentHistory.find(p => p.type === 'DP');
+      const newDpAmount = dpItem ? dpItem.amount : (quickPayOrder.dpAmount > 0 ? quickPayOrder.dpAmount : totalPaid);
+
+      const updatedRemaining = Math.max(0, quickPayOrder.totalPrice - totalPaid);
+      const updatedStatus: PaymentStatus = updatedRemaining <= 0 ? 'LUNAS' : 'DP_DIBAYAR';
 
       const updatedOrderObj: ConvectionOrder = {
         ...quickPayOrder,
+        dpAmount: newDpAmount,
         remainingBalance: updatedRemaining,
         paymentStatus: updatedStatus,
         paymentHistory: updatedPaymentHistory
@@ -3373,7 +3472,29 @@ export default function CashierDashboard() {
                 <div className="border-t border-slate-200 my-2 pt-2"></div>
 
                 {/* DP payment */}
-                <h4 className="text-xs font-bold text-slate-600 block mb-1">Catatan Pembayaran Down Payment (Uang Muka)</h4>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-xs font-bold text-slate-700">Catatan Pembayaran Down Payment (Uang Muka / DP)</h4>
+                  {editingOrder && (
+                    <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded border border-emerald-200">
+                      DP Sebelumnya Terjaga
+                    </span>
+                  )}
+                </div>
+
+                {editingOrder && (formData.dpAmount > 0 || (editingOrder.paymentHistory && editingOrder.paymentHistory.length > 0)) && (
+                  <div className="mb-3 p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs text-emerald-800 flex items-start gap-2.5">
+                    <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-emerald-900">
+                        Uang Muka (DP) Tercatat: {formatRupiah(formData.dpAmount || 0)}
+                      </p>
+                      <p className="text-[11px] text-emerald-700 leading-relaxed font-normal">
+                        DP ini otomatis dipertahankan dan tidak akan hilang saat Anda mengedit rincian pesanan (misal ada penambahan kaos). Sisa tagihan akan disesuaikan otomatis dengan total baru.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">DP Dibayarkan (Rp)</label>
@@ -3381,7 +3502,7 @@ export default function CashierDashboard() {
                       type="number"
                       value={formData.dpAmount || ''}
                       onChange={(e) => setFormData({ ...formData, dpAmount: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm font-mono"
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 text-sm font-mono font-bold text-slate-800"
                       placeholder="Boleh diisi 0 jika hutang"
                       id="input-form-dp"
                     />
@@ -3606,6 +3727,80 @@ export default function CashierDashboard() {
                 </div>
               </div>
 
+              {/* Row: Sinkronisasi Aplikasi Keuangan saat Edit Order */}
+              {editingOrder && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50/50 p-4 rounded-xl border border-blue-200/90 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw size={16} className="text-blue-600 animate-spin-slow" />
+                      <h3 className="text-xs uppercase font-extrabold text-blue-900 tracking-wide">
+                        Sinkronisasi ke Aplikasi Keuangan
+                      </h3>
+                    </div>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Anti-Dobel Data
+                    </span>
+                  </div>
+                  
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    Saat mengedit invoice (contoh ada penambahan order atau revisi), tentukan bagaimana data di aplikasi keuangan diselaraskan:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <label 
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        editFinanceSyncMode === 'update' 
+                          ? 'bg-white border-blue-600 ring-2 ring-blue-500/20 shadow-xs text-slate-800' 
+                          : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        name="editFinanceSyncMode" 
+                        value="update" 
+                        checked={editFinanceSyncMode === 'update'} 
+                        onChange={() => setEditFinanceSyncMode('update')}
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <div className="text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-blue-950">
+                          <span>Perbarui Data Lama (Update)</span>
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-extrabold">REKOMENDASI</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug font-normal">
+                          Memperbarui data lama invoice #{editingOrder.invoiceNumber} di aplikasi keuangan sesuai nominal terbaru tanpa membuat data dobel.
+                        </p>
+                      </div>
+                    </label>
+
+                    <label 
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        editFinanceSyncMode === 'none' 
+                          ? 'bg-white border-blue-600 ring-2 ring-blue-500/20 shadow-xs text-slate-800' 
+                          : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        name="editFinanceSyncMode" 
+                        value="none" 
+                        checked={editFinanceSyncMode === 'none'} 
+                        onChange={() => setEditFinanceSyncMode('none')}
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <div className="text-xs">
+                        <div className="font-bold text-slate-800">
+                          Hanya Simpan di Kasir (Tanpa Kirim)
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug font-normal">
+                          Hanya mengubah rincian pesanan kasir tanpa mengubah maupun mengirim mutasi ke aplikasi keuangan.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* Submits */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
@@ -3621,10 +3816,18 @@ export default function CashierDashboard() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm transition-all cursor-pointer"
+                  disabled={isSubmittingOrder}
+                  className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   id="btn-save-form"
                 >
-                  {editingOrder ? 'Simpan Perubahan Transaksi' : 'Simpan Order & Terbitkan Invoice'}
+                  {isSubmittingOrder ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>{editingOrder ? 'Menyimpan Perubahan...' : 'Menerbitkan Invoice...'}</span>
+                    </>
+                  ) : (
+                    editingOrder ? 'Simpan Perubahan Transaksi' : 'Simpan Order & Terbitkan Invoice'
+                  )}
                 </button>
               </div>
 
